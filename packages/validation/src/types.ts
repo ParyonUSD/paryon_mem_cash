@@ -3,6 +3,17 @@ import type { decodeTransactionBch, Output } from "@bitauth/libauth";
 /** Supported BCH virtual machine versions (matches libauth identifiers). */
 export type VmVersion = "BCH_2023_05" | "BCH_2025_05" | "BCH_2026_05" | "BCH_SPEC";
 
+/** Optional libauth consensus limits for private/test networks. */
+export interface ConsensusOverrides {
+	maximumBytecodeLength?: number;
+	maximumStackItemLength?: number;
+	maximumVmNumberByteLength?: number;
+	maximumStandardUnlockingBytecodeLength?: number;
+	maximumStandardLockingBytecodeLength?: number;
+	maximumTransactionLengthBytes?: number;
+	maximumStandardTransactionSize?: number;
+}
+
 /** Configuration for the transaction verifier. */
 export interface TxVerifierConfig {
 	/** VM version to use (default: "BCH_2025_05"). */
@@ -17,6 +28,8 @@ export interface TxVerifierConfig {
 	skipFeePolicy?: boolean;
 	/** Dust relay fee in sat/KB (default: DUST_RELAY_FEE_PER_KB). Fixed, independent of minRelayFeePerKb. */
 	dustRelayFeePerKb?: bigint;
+	/** Private/test-network consensus overrides. Production callers should leave this unset. */
+	consensus?: ConsensusOverrides;
 }
 
 /**

@@ -4,6 +4,17 @@ Versions 0.0.7 to 0.0.9 were published to npm by mainnet-pat without their sourc
 entries below are written by the @paryonusd/mem-cash fork, which recovered each version's TypeScript
 from the published build; the code is upstream's and does not differ from it.
 
+## 0.0.8
+
+Recovered from the npm build (gitHead `9d5b36e`, published 2026-07-22).
+
+- Add `TxVerifierConfig.consensus` (`ConsensusOverrides`) - overrides libauth's consensus limits
+  (bytecode, stack item, VM number, standard unlocking/locking bytecode, transaction and standard
+  transaction size) for private and test networks. Each value must be a positive safe integer.
+  With overrides, the VM is built from libauth's instruction sets and consensus tables, imported
+  from `@bitauth/libauth/build/lib/...`.
+- `createVmFacade` takes the overrides as an optional third argument.
+
 ## 0.0.7
 
 Recovered from the npm build (gitHead `9fa7824`, published 2026-07-19).

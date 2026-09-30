@@ -20,6 +20,19 @@ if (result.success) {
 }
 ```
 
+Private and test networks may override libauth consensus limits without changing production defaults:
+
+```typescript
+const verifier = createTxVerifier({
+  vmVersion: "BCH_2026_05",
+  consensus: {
+    maximumBytecodeLength: 1_000_000,
+    maximumStackItemLength: 1_000_000,
+    maximumTransactionLengthBytes: 10_000_000,
+  },
+});
+```
+
 ## Verification Pipeline
 
 Matches BCHN's `AcceptToMemoryPool` order:

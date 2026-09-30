@@ -1,5 +1,6 @@
 import {
 	binToHex,
+	createVirtualMachine,
 	createVirtualMachineBch2023,
 	createVirtualMachineBch2025,
 	createVirtualMachineBch2026,
@@ -8,8 +9,20 @@ import {
 	encodeTransactionBch,
 	hashTransactionUiOrder,
 	hexToBin,
+	ripemd160,
+	secp256k1,
+	sha1,
+	sha256,
 	type Output,
 } from "@bitauth/libauth";
+import { ConsensusBch2023 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2023/bch-2023-consensus.js";
+import { ConsensusBch2025 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2025/bch-2025-consensus.js";
+import { ConsensusBch2026 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2026/bch-2026-consensus.js";
+import { ConsensusBchSpec } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/spec/bch-spec-consensus.js";
+import { createInstructionSetBch2023 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2023/bch-2023-instruction-set.js";
+import { createInstructionSetBch2025 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2025/bch-2025-instruction-set.js";
+import { createInstructionSetBch2026 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2026/bch-2026-instruction-set.js";
+import { createInstructionSetBchSpec } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/spec/bch-spec-instruction-set.js";
 import { REJECT_INVALID, REJECT_MALFORMED, REJECT_NONSTANDARD } from "@mem-cash/types";
 import {
 	checkAbsurdFee,
@@ -30,6 +43,7 @@ import {
 } from "./constants.js";
 import type {
 	ChainState,
+	ConsensusOverrides,
 	DebugInputResult,
 	DebugResult,
 	SourceOutput,
@@ -51,21 +65,36 @@ export interface VmFacade {
 }
 
 /** Create a libauth VM for the given version. */
-export function createVmFacade(version: VmVersion, standard: boolean): VmFacade {
-	const createFn = (() => {
+export function createVmFacade(
+	version: VmVersion,
+	standard: boolean,
+	consensusOverrides?: ConsensusOverrides,
+): VmFacade {
+	if (consensusOverrides === undefined) {
 		switch (version) {
 			case "BCH_2023_05":
-				return createVirtualMachineBch2023;
+				return facade(createVirtualMachineBch2023(standard));
 			case "BCH_2025_05":
-				return createVirtualMachineBch2025;
+				return facade(createVirtualMachineBch2025(standard));
 			case "BCH_2026_05":
-				return createVirtualMachineBch2026;
+				return facade(createVirtualMachineBch2026(standard));
 			case "BCH_SPEC":
-				return createVirtualMachineBchSpec;
+				return facade(createVirtualMachineBchSpec(standard) as unknown as ReturnType<typeof createVirtualMachineBch2025>);
+		}
+	}
+	const crypto = { ripemd160, secp256k1, sha1, sha256 };
+	const instructionSet = (() => {
+		switch (version) {
+			case "BCH_2023_05": return createInstructionSetBch2023(standard, { ...crypto, consensus: { ...ConsensusBch2023, ...consensusOverrides } } as never);
+			case "BCH_2025_05": return createInstructionSetBch2025(standard, { ...crypto, consensus: { ...ConsensusBch2025, ...consensusOverrides } } as never);
+			case "BCH_2026_05": return createInstructionSetBch2026(standard, { ...crypto, consensus: { ...ConsensusBch2026, ...consensusOverrides } } as never);
+			case "BCH_SPEC": return createInstructionSetBchSpec(standard, { ...crypto, consensus: { ...ConsensusBchSpec, ...consensusOverrides } } as never);
 		}
 	})();
-	const vm = createFn(standard);
+	return facade(createVirtualMachine(instructionSet as never));
+}
 
+function facade(vm: ReturnType<typeof createVirtualMachineBch2025>): VmFacade {
 	return {
 		verify(resolved) {
 			return vm.verify(resolved as Parameters<typeof vm.verify>[0]);
@@ -153,11 +182,16 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 	if (maxFee <= 0n) {
 		throw new Error("maxFee must be positive");
 	}
-	const vm = createVmFacade(version, standard);
+	for (const [name, value] of Object.entries(config?.consensus ?? {})) {
+		if (!Number.isSafeInteger(value) || value <= 0) {
+			throw new Error(`consensus.${name} must be a positive safe integer`);
+		}
+	}
+	const vm = createVmFacade(version, standard, config?.consensus);
 	// Consensus-only VM for two-pass script verification (BCHN CheckInputs pattern).
 	// When standard=true, a script failure is re-checked with consensus-only flags to
 	// distinguish mandatory vs non-mandatory violations.
-	const consensusVm = standard ? createVmFacade(version, false) : null;
+	const consensusVm = standard ? createVmFacade(version, false, config?.consensus) : null;
 
 	/** Run pre-VM pipeline steps 1-12. Returns validated data or error. */
 	function preVmPipeline(

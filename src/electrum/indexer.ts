@@ -152,8 +152,10 @@ export function createIndexer(config?: IndexerConfig): Indexer {
 	const ctx: ProtocolContext = {
 		node,
 		serverVersion,
-		protocolMin: "1.6",
-		protocolMax: "1.6",
+		// Fulcrum 1.x's range. The handlers answer in the 1.5 shapes (blockchain.block.headers with `hex`),
+		// so advertising 1.6, as upstream did, promised answers they do not give.
+		protocolMin: "1.4",
+		protocolMax: "1.5.3",
 		genesisHash,
 		hashFunction: "sha256",
 		getDsproof,

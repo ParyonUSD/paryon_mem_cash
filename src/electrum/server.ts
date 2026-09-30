@@ -7,24 +7,26 @@ import {
 	type ProtocolContext,
 } from "./types.js";
 
+type Version = [major: number, minor: number, revision: number];
+
 /**
- * Parse a version string like "1.4" into [major, minor].
- * Returns null if invalid.
+ * Parse a protocol version the way Fulcrum does: "1", "1.4" or "1.4.3", a missing part being 0.
+ * Returns null if invalid. Upstream took two parts only, refusing the "1.5.0" clients send.
  */
-function parseVersion(v: string): [number, number] | null {
-	const parts = v.split(".");
-	if (parts.length !== 2) return null;
-	const major = Number(parts[0]);
-	const minor = Number(parts[1]);
-	if (!Number.isInteger(major) || !Number.isInteger(minor)) return null;
-	return [major, minor];
+function parseVersion(v: string): Version | null {
+	if (!/^\d+(\.\d+){0,2}$/.test(v)) return null;
+	const [major = 0, minor = 0, revision = 0] = v.split(".").map(Number);
+	return [major, minor, revision];
 }
 
-/** Compare two version tuples. Returns -1, 0, or 1. */
-function compareVersions(a: [number, number], b: [number, number]): number {
-	if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;
-	if (a[1] !== b[1]) return a[1] < b[1] ? -1 : 1;
-	return 0;
+/** Compare two versions. Returns negative, 0, or positive. */
+function compareVersions(a: Version, b: Version): number {
+	return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+
+/** Fulcrum's form of a version: the revision only when it is not 0 ("1.5" for 1.5.0). */
+function formatVersion([major, minor, revision]: Version): string {
+	return revision === 0 ? `${major}.${minor}` : `${major}.${minor}.${revision}`;
 }
 
 /** server.version */
@@ -70,9 +72,8 @@ export function version(ctx: ProtocolContext, params: unknown[]): HandlerResult 
 
 	// Negotiated version = min(cMax, serverMax)
 	const negotiated = compareVersions(cMax, serverMax) <= 0 ? cMax : serverMax;
-	const negotiatedStr = `${negotiated[0]}.${negotiated[1]}`;
 
-	return ok([ctx.serverVersion, negotiatedStr]);
+	return ok([ctx.serverVersion, formatVersion(negotiated)]);
 }
 
 /** server.ping */

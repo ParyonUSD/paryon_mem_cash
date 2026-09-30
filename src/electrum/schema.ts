@@ -380,7 +380,7 @@ export type ElectrumCashSchema_1_5_3 = {
 		{ method: "server.ping"; params: []; return: null },
 		{
 			method: "server.version";
-			params: [client_name?: string, protocol_version?: string];
+			params: [client_name?: string, protocol_version?: string | [min: string, max: string]];
 			return: [server_software_version: string, protocol_version: string];
 		},
 	];
@@ -483,9 +483,12 @@ export type ElectrumCashSchema = ElectrumCashSchema_1_6_0;
 
 // --- Test extension ---
 
-/** ElectrumCash schema extended with test.* development/testing methods. */
+/**
+ * ElectrumCash schema extended with test.* development/testing methods. Built on 1.5.3, the highest
+ * protocol version the Indexer negotiates, so the types match its answers.
+ */
 export type ElectrumCashTestSchema = OverrideRequests<
-	ElectrumCashSchema,
+	ElectrumCashSchema_1_5_3,
 	[
 		{
 			method: "test.set_chain_tip";

@@ -48,6 +48,13 @@ transaction service's simulated network needs.
   nothing. New export `computeScriptHash(lockingBytecode)`. Upstream tests that computed the plain
   hash now reverse it.
 
+- **Protocol 1.4 to 1.5.3, as Fulcrum 1.x.** `server.version` parses versions of up to three parts
+  and answers with the negotiated one in Fulcrum's form (`"1.5"` for 1.5.0), and `server.features`
+  advertises 1.4 to 1.5.3. Upstream negotiated 1.6 only and parsed two parts, so it refused the
+  `"1.5.0"` and `"1.5.2"` clients send. `blockchain.block.headers` keeps its 1.5 shape (`hex`), which
+  is now what the negotiated version promises; the Indexer's request types (`ElectrumCashTestSchema`)
+  are built on the 1.5.3 schema to match, and `server.version` is typed to take a `[min, max]` range.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

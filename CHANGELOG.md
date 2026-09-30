@@ -219,9 +219,12 @@ transaction service's simulated network needs.
 - **Verbose transactions describe scripts as BCHN.** `blockchain.transaction.get` with `verbose` gives
   every script's asm as BCHN's `ScriptToAsmStr` (pushes of up to 8 bytes as numbers, `OP_0` to `OP_16`
   by number, a signature in an unlocking script with its sighash type named), and a locking script's
-  type and addresses as `ScriptPubKeyToUniv`: P2SH32 is `scripthash` with its address, a public key and
-  a multisig's keys give their P2PKH addresses, and `nulldata` or `nonstandard` scripts carry no
-  `reqSigs` or `addresses` (optional in the schema now). Opcodes are named as libauth's 2023 set names
+  type and addresses as `ScriptPubKeyToUniv`, with Solver's templates and the May 2026 flags it passes:
+  P2SH32 is `scripthash` with its address, a public key and a multisig's keys give their P2PKH
+  addresses (a key only with a 02/03 or 04/06/07 first byte of the right length, a multisig only with m
+  at most n), any other script of up to 201 bytes is `script` (pay-to-script), longer ones
+  `nonstandard`, and `nulldata`, `script` and `nonstandard` carry no `reqSigs` or `addresses`
+  (optional in the schema now). Opcodes are named as libauth's 2023 set names
   them. Upstream gave asm only for OP_RETURN (as hex), knew only P2PKH and P2SH20, and called P2SH32
   nonstandard, with `reqSigs: 1` and no address.
 

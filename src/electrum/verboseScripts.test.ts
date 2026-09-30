@@ -47,7 +47,37 @@ describe("verbose transaction scripts", () => {
 				addresses: ["bitcoincash:qqg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zye3kwllue"],
 			},
 			{ asm: "OP_RETURN 621", hex: "6a026d02", type: "nulldata" },
-			{ asm: "1", hex: "51", type: "nonstandard" },
+			// Any other script of up to 201 bytes is pay-to-script since the May 2026 upgrade, with no address
+			{ asm: "1", hex: "51", type: "script" },
+		]);
+	});
+
+	it("types the scripts no template matches as BCHN's Solver does", async () => {
+		const node = createTestIndexer(200);
+		const pubkey = (header: number) => [header, ...new Uint8Array(32).fill(0x33)];
+		const tx = buildTx(
+			[{ txid: "aa".repeat(32), vout: 0 }],
+			[
+				// Longer than 201 bytes: no pay-to-script
+				{ lockingBytecode: new Uint8Array(202).fill(0x51), valueSatoshis: 1_000n },
+				// A public key whose first byte no key has: no pubkey output, so no address
+				{ lockingBytecode: Uint8Array.of(33, ...pubkey(0x05), 0xac), valueSatoshis: 1_000n },
+				// 1-of-2 bare multisig: both keys' addresses
+				{ lockingBytecode: Uint8Array.of(0x51, 33, ...pubkey(0x02), 33, ...pubkey(0x03), 0x52, 0xae), valueSatoshis: 1_000n },
+				// 2-of-1 is no multisig
+				{ lockingBytecode: Uint8Array.of(0x52, 33, ...pubkey(0x02), 0x51, 0xae), valueSatoshis: 1_000n },
+			],
+		);
+		node.storage.applyBlock(blockOf(node, [tx]));
+		const verbose = (await node.request("blockchain.transaction.get", [tx.txid, true])) as {
+			vout: { scriptPubKey: { type: string; reqSigs?: number; addresses?: string[] } }[];
+		};
+		const described = verbose.vout.map(({ scriptPubKey: { type, reqSigs, addresses } }) => ({ type, reqSigs, addresses }));
+		expect(described).toEqual([
+			{ type: "nonstandard", reqSigs: undefined, addresses: undefined },
+			{ type: "script", reqSigs: undefined, addresses: undefined },
+			{ type: "multisig", reqSigs: 1, addresses: [expect.stringMatching(/^bitcoincash:q/), expect.stringMatching(/^bitcoincash:q/)] },
+			{ type: "script", reqSigs: undefined, addresses: undefined },
 		]);
 	});
 });

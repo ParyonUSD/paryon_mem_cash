@@ -2,6 +2,7 @@ export type { CheckResult } from "./checks.js";
 export {
 	checkAbsurdFee,
 	checkCoinbaseMaturity,
+	checkDuplicateInputs,
 	checkDustOutputs,
 	checkInputValueRanges,
 	checkLocktimeFinality,

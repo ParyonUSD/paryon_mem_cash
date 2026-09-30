@@ -162,6 +162,15 @@ transaction service's simulated network needs.
   notification a subscriber gets when a block confirms the parent, come from the parent links above;
   `mempoolHeights.test.ts` holds them all.
 
+- **Checks in BCHN's order.** The verifier checks what `AcceptToMemoryPoolWorker` checks, in its
+  order: the transaction on its own (null prevout, then a duplicate input, now refused as
+  `bad-txns-inputs-duplicate (code 16)` by new `checkDuplicateInputs`), dust (standard only), finality,
+  then with the inputs BIP68 before `CheckTxInputs` (maturity, unspendable, values, in-belowout), then
+  fees and scripts. So dust wins over a fee too low and over a locktime not reached, and an unmet
+  relative lock wins over outputs exceeding inputs. Upstream checked dust after the fees, BIP68 after
+  in-belowout, and left duplicate inputs to libauth, which answered
+  `mandatory-script-verify-flag-failed (... spend the same outpoint in multiple inputs ...)`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

@@ -123,8 +123,8 @@ export type ValidationTypes = [
 	validation.VmVersion,
 ];
 
-// Every value the five packages exported at 0.0.9, and the fork's additions: computeScriptHash,
-// createBlockHeader.
+// Every value the five packages exported at 0.0.9, and the fork's additions: checkDuplicateInputs,
+// computeScriptHash, createBlockHeader.
 const values = [
 	"COINBASE_MATURITY",
 	"DEFAULT_MAX_FEE",
@@ -161,6 +161,7 @@ const values = [
 	"broadcast",
 	"checkAbsurdFee",
 	"checkCoinbaseMaturity",
+	"checkDuplicateInputs",
 	"checkDustOutputs",
 	"checkInputValueRanges",
 	"checkLocktimeFinality",
@@ -224,7 +225,7 @@ const values = [
 	"version",
 ];
 
-// What @mem-cash/validation exported as values at 0.0.9.
+// What @mem-cash/validation exported as values at 0.0.9, and the fork's checkDuplicateInputs.
 const validationValues = [
 	"COINBASE_MATURITY",
 	"DEFAULT_MAX_FEE",
@@ -242,6 +243,7 @@ const validationValues = [
 	"SEQUENCE_LOCKTIME_TYPE_FLAG",
 	"checkAbsurdFee",
 	"checkCoinbaseMaturity",
+	"checkDuplicateInputs",
 	"checkDustOutputs",
 	"checkInputValueRanges",
 	"checkLocktimeFinality",
@@ -259,7 +261,7 @@ describe("entry points", () => {
 		expect(Object.keys(root).sort()).toEqual(values);
 	});
 
-	it("'./validation' exports what @mem-cash/validation 0.0.9 did", () => {
+	it("'./validation' exports what @mem-cash/validation 0.0.9 did, and the fork's additions", () => {
 		expect(Object.keys(validation).sort()).toEqual(validationValues);
 	});
 

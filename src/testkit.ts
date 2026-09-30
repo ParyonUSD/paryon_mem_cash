@@ -74,9 +74,12 @@ export function buildTx(
 	return { txid: binToHex(hashTransactionUiOrder(encoded)), hex: binToHex(encoded) };
 }
 
-/** A node with a verifier (OP_TRUE is non-standard, so standardness is off) and a tip at `height`. */
-export function createTestIndexer(height = 200): Indexer {
-	const node = createIndexer({ verifier: createTxVerifier({ standard: false }) });
+/**
+ * A node with a verifier and a tip at `height`. Standardness is off by default, as OP_TRUE is
+ * non-standard; a standard node's tests spend P2SH_OP_TRUE coins (`addP2shCoin`).
+ */
+export function createTestIndexer(height = 200, { standard = false }: { standard?: boolean } = {}): Indexer {
+	const node = createIndexer({ verifier: createTxVerifier({ standard }) });
 	node.setChainTip(height, 1_700_000_000);
 	return node;
 }
@@ -87,6 +90,17 @@ export function addCoin(node: Indexer, seed: string, satoshis = 100_000n, height
 	node.addUtxo({ txid, vout: 0, satoshis, height, lockingBytecode: OP_TRUE, scriptHash: OP_TRUE_SCRIPTHASH });
 	return { txid, vout: 0 };
 }
+
+/** A confirmed P2SH_OP_TRUE coin, with the unlocking script that spends it. */
+export function addP2shCoin(node: Indexer, seed: string, satoshis = 100_000n, height = 100): TestInput {
+	const txid = seed.repeat(32);
+	const scriptHash = P2SH_OP_TRUE_SCRIPTHASH;
+	node.addUtxo({ txid, vout: 0, satoshis, height, lockingBytecode: P2SH_OP_TRUE, scriptHash });
+	return { txid, vout: 0, unlocking: P2SH_OP_TRUE_UNLOCKING };
+}
+
+/** An output paying P2SH_OP_TRUE, standard where OP_TRUE is not. */
+export const toP2sh = (valueSatoshis: bigint): Output => ({ lockingBytecode: P2SH_OP_TRUE, valueSatoshis });
 
 /** What a broadcast answers: the txid, or the message it was refused with. */
 export async function broadcast(node: Indexer, hex: string): Promise<string> {

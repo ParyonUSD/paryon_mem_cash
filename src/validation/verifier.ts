@@ -39,6 +39,7 @@ import { REJECT_INVALID, REJECT_MALFORMED, REJECT_NONSTANDARD } from "../types/i
 import {
 	checkAbsurdFee,
 	checkCoinbaseMaturity,
+	checkDuplicateInputs,
 	checkDustOutputs,
 	checkInputValueRanges,
 	checkLocktimeFinality,
@@ -201,21 +202,18 @@ type PipelineResult = PipelineSuccess | PipelineFailure;
  * Create a stateless transaction verifier.
  * All context (source outputs, chain state) is provided per call.
  *
- * Pipeline order (matching BCHN AcceptToMemoryPool):
+ * Pipeline order (matching BCHN AcceptToMemoryPoolWorker):
  *  1. Decode tx hex
- *  2. Null prevout check
- *  3. Locktime finality check (1-3 are checkBeforeInputs: they need no source outputs)
- *  4. Validate sourceOutputs length
- *  5. Coinbase maturity check
- *  6. Unspendable inputs check
- *  7. Input value ranges check
- *  8. Compute fee
- *  9. BIP68 sequence locks check
- * 10. Min relay fee check (policy, before VM)
- * 11. Absurd fee guard (policy, before VM)
- * 12. Dust output check (policy, standard only)
- * 13. VM verify (most expensive — last)
- * 14. Build ValidatedTransaction
+ *  2. Null prevout and duplicate input checks (CheckRegularTransaction)
+ *  3. Dust output check (IsStandardTx; policy, standard only)
+ *  4. Locktime finality check (1-4 are checkBeforeInputs: they need no source outputs)
+ *  5. Validate sourceOutputs length
+ *  6. BIP68 sequence locks check
+ *  7. Coinbase maturity, unspendable inputs, input value ranges, fee (CheckTxInputs)
+ *  8. Min relay fee check (policy, before VM)
+ *  9. Absurd fee guard (policy, before VM)
+ * 10. VM verify (most expensive — last)
+ * 11. Build ValidatedTransaction
  */
 export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 	const version = config?.vmVersion ?? "BCH_2025_05";
@@ -242,8 +240,8 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 	const consensusVm = standard ? createVmFacade(version, false, config?.consensus) : null;
 
 	/**
-	 * Decode, then the checks BCHN makes before it looks up the inputs (TxVerifier.checkBeforeInputs):
-	 * the null prevout of CheckRegularTransaction and the finality of
+	 * Decode, then the checks BCHN makes before it looks up the inputs (TxVerifier.checkBeforeInputs), in
+	 * its order: CheckRegularTransaction, IsStandardTx, then the finality of
 	 * ContextualCheckTransactionForCurrentBlock. None of them reads a source output.
 	 */
 	function beforeInputs(
@@ -271,8 +269,17 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		}));
 		const nullCheck = checkNullPrevout(prevoutInputs);
 		if (!nullCheck.ok) return nullCheck;
+		const duplicateCheck = checkDuplicateInputs(prevoutInputs);
+		if (!duplicateCheck.ok) return duplicateCheck;
 
-		// 3. Locktime finality check
+		// 3. Dust output check (policy, matches BCHN IsStandardTx). Uses the fixed dust relay fee. BCHN
+		// makes it before finality, fees and inputs, so it wins over all of them.
+		if (standard) {
+			const dustCheck = checkDustOutputs(decoded.outputs, dustRelayFeePerKb);
+			if (!dustCheck.ok) return dustCheck;
+		}
+
+		// 4. Locktime finality check
 		const locktimeCheck = checkLocktimeFinality(
 			decoded.locktime,
 			decoded.inputs,
@@ -286,7 +293,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		return { ok: true, decoded };
 	}
 
-	/** Run pre-VM pipeline steps 1-12. Returns validated data or error. */
+	/** Run pre-VM pipeline steps 1-9. Returns validated data or error. */
 	function preVmPipeline(
 		rawHex: string,
 		sourceOutputs: readonly SourceOutput[],
@@ -294,12 +301,12 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 	): PipelineResult {
 		const spendHeight = chainState.height + 1;
 
-		// 1-3. Decode, null prevout, finality
+		// 1-4. Decode, the transaction on its own, finality
 		const before = beforeInputs(rawHex, chainState);
 		if (!before.ok) return before;
 		const { decoded } = before;
 
-		// 4. Validate sourceOutputs count matches inputs
+		// 5. Validate sourceOutputs count matches inputs
 		if (sourceOutputs.length !== decoded.inputs.length) {
 			return {
 				ok: false,
@@ -313,7 +320,26 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		const encodedBytes = encodeTransactionBch(decoded);
 		const txid = binToHex(hashTransactionUiOrder(encodedBytes));
 
-		// 5. Coinbase maturity check
+		// 6. BIP68 sequence locks check. BCHN's CheckSequenceLocks comes once the inputs are found and before
+		// CheckTxInputs, so an unmet relative lock wins over outputs exceeding inputs.
+		const seqCheck = checkSequenceLocks(
+			decoded.version,
+			sourceOutputs.map((so, idx) => {
+				// A mempool coin (height 0) counts as confirmed in the next block, as BCHN's CheckSequenceLocks
+				// takes it, so a relative height lock on an unconfirmed parent is not final yet
+				const input: { sequenceNumber: number; height: number; medianTimePast?: number } = {
+					sequenceNumber: decoded.inputs[idx]?.sequenceNumber ?? 0xffffffff,
+					height: so.height === 0 ? spendHeight : (so.height ?? 1),
+				};
+				if (so.medianTimePast != null) input.medianTimePast = so.medianTimePast;
+				return input;
+			}),
+			spendHeight,
+			chainState.medianTimePast,
+		);
+		if (!seqCheck.ok) return seqCheck;
+
+		// 7. CheckTxInputs: coinbase maturity check
 		const maturityCheck = checkCoinbaseMaturity(
 			sourceOutputs.map((so) => ({
 				isCoinbase: so.isCoinbase,
@@ -323,7 +349,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		);
 		if (!maturityCheck.ok) return maturityCheck;
 
-		// 6. Unspendable inputs check
+		// 7. Unspendable inputs check
 		const unspendableCheck = checkUnspendableInputs(sourceOutputs);
 		if (!unspendableCheck.ok) return unspendableCheck;
 
@@ -331,7 +357,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		const valueCheck = checkInputValueRanges(sourceOutputs.map((so) => so.valueSatoshis));
 		if (!valueCheck.ok) return valueCheck;
 
-		// 8. Compute fee (validate output values first)
+		// 7. Compute fee (validate output values first)
 		let inputSum = 0n;
 		for (const so of sourceOutputs) {
 			inputSum += so.valueSatoshis;
@@ -364,25 +390,8 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			};
 		}
 
-		// 9. BIP68 sequence locks check
-		const seqCheck = checkSequenceLocks(
-			decoded.version,
-			sourceOutputs.map((so, idx) => {
-				// A mempool coin (height 0) counts as confirmed in the next block, as BCHN's CheckSequenceLocks
-				// takes it, so a relative height lock on an unconfirmed parent is not final yet
-				const input: { sequenceNumber: number; height: number; medianTimePast?: number } = {
-					sequenceNumber: decoded.inputs[idx]?.sequenceNumber ?? 0xffffffff,
-					height: so.height === 0 ? spendHeight : (so.height ?? 1),
-				};
-				if (so.medianTimePast != null) input.medianTimePast = so.medianTimePast;
-				return input;
-			}),
-			spendHeight,
-			chainState.medianTimePast,
-		);
-		if (!seqCheck.ok) return seqCheck;
 
-		// 10-11. Fee policy checks (min-relay + absurd-fee). Skipped for unfunded txs.
+		// 8-9. Fee policy checks (min-relay + absurd-fee). Skipped for unfunded txs.
 		if (!skipFeePolicy) {
 			const size = encodedBytes.length;
 			const feeCheck = checkMinRelayFee(fee, size, minRelayFeePerKb);
@@ -392,11 +401,6 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			if (!absurdCheck.ok) return absurdCheck;
 		}
 
-		// 12. Dust output check (policy, matches BCHN IsStandardTx). Uses the fixed dust relay fee.
-		if (standard) {
-			const dustCheck = checkDustOutputs(decoded.outputs, dustRelayFeePerKb);
-			if (!dustCheck.ok) return dustCheck;
-		}
 
 		return { ok: true, decoded, txid, encodedBytes, fee };
 	}
@@ -454,7 +458,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 
 		const { decoded, txid, encodedBytes, fee } = pipeline;
 
-		// 13. VM verify (most expensive — last)
+		// 10. VM verify (most expensive — last)
 		const vmOutputs = toVmOutputs(sourceOutputs);
 		const verifyResult = vm.verify({ sourceOutputs: vmOutputs, transaction: decoded });
 		if (verifyResult !== true) {
@@ -466,7 +470,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			return { success: false, code, error };
 		}
 
-		// 14. Build ValidatedTransaction
+		// 11. Build ValidatedTransaction
 		const size = encodedBytes.length;
 		const validatedTx: ValidatedTransaction = {
 			txid,
@@ -491,7 +495,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		const { decoded, txid, encodedBytes, fee } = pipeline;
 		const vmOutputs = toVmOutputs(sourceOutputs);
 
-		// 13. Debug each input individually
+		// 10. Debug each input individually
 		const inputResults: DebugInputResult[] = [];
 		for (let i = 0; i < decoded.inputs.length; i++) {
 			try {
@@ -542,7 +546,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			return { success: false, code, error, inputResults };
 		}
 
-		// 14. Build ValidatedTransaction
+		// 11. Build ValidatedTransaction
 		const size = encodedBytes.length;
 		const validatedTx: ValidatedTransaction = {
 			txid,

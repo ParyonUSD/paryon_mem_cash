@@ -50,6 +50,20 @@ export function checkNullPrevout(inputs: readonly PrevoutInput[]): CheckResult {
 }
 
 /**
+ * Reject a transaction spending one outpoint in two inputs.
+ * BCHN: CheckRegularTransaction → "bad-txns-inputs-duplicate" (REJECT_INVALID, DoS 100).
+ */
+export function checkDuplicateInputs(inputs: readonly PrevoutInput[]): CheckResult {
+	const seen = new Set<string>();
+	for (const input of inputs) {
+		const key = `${input.txid}:${input.vout}`;
+		if (seen.has(key)) return { ok: false, code: REJECT_INVALID, error: "bad-txns-inputs-duplicate" };
+		seen.add(key);
+	}
+	return CHECK_OK;
+}
+
+/**
  * Validate each input value is within range and cumulative sum does not exceed MAX_MONEY.
  * BCHN: CheckTxInputs → "bad-txns-inputvalues-outofrange" (REJECT_INVALID, DoS 100).
  */

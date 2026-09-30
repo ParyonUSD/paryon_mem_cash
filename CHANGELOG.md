@@ -240,6 +240,11 @@ transaction service's simulated network needs.
   parent connects. Upstream went transaction by transaction: the child's input found no coin yet, the
   parent then created it, and a coin the block spent stayed unspent.
 
+- **Disconnected transactions return parents first.** `disconnectBlocks` puts the disconnected
+  blocks' transactions back through acceptance with each after the ones among them it spends, as BCHN's
+  `DisconnectedBlockTransactions` sorts them, so a child ahead of its parent in a CTOR block returns
+  instead of dropping as `Missing inputs`. Upstream had no `disconnectBlocks`.
+
 - **OP_RETURN outputs are no coins.** Neither the mempool nor a block (mined or applied) indexes an
   output whose script starts with OP_RETURN: no coin, no history for its scripthash, as BCHN's UTXO set
   and Fulcrum's index leave it out. Spending one answers `Missing inputs`. Upstream indexed it as a

@@ -115,6 +115,17 @@ describe("disconnectBlocks", () => {
 		expect(node.disconnectBlocks(2)).toMatchObject({ height: 200, returned: [], dropped: [late.txid] });
 	});
 
+	it("returns a block's child ahead of its parent to the mempool, parents first", () => {
+		// A block in CTOR order (by txid) can hold a child before its parent; admitting the child first
+		// answered Missing inputs and dropped it
+		const node = createTestIndexer(200);
+		const parent = buildTx([addCoin(node, "aa")], [49_000n, 50_000n]);
+		const child = buildTx([{ txid: parent.txid, vout: 0 }], [48_000n]);
+		node.storage.applyBlock(blockOf(node, [child, parent]));
+		expect(node.disconnectBlocks(1)).toMatchObject({ returned: [parent.txid, child.txid], dropped: [] });
+		expect([...(node.getMempoolTx(child.txid)?.parents ?? [])]).toEqual([parent.txid]);
+	});
+
 	it("refuses to disconnect more blocks than it has", () => {
 		const node = createTestIndexer(200);
 		node.mine();

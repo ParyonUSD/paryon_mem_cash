@@ -549,8 +549,10 @@ export function createNode(config?: NodeConfig): Node {
 			if (rawHex === undefined) throw new Error(`Cannot disconnect ${count} blocks: no raw transaction for ${txid}`);
 			return rawHex;
 		};
-		// Oldest block first, each in block order, then the mempool, parents before children
-		const disconnected = blocks.reverse().flatMap((txids) => (txids ?? []).map(rawOf));
+		// Oldest block first, parents before children, then the mempool, which holds parents first. A block
+		// in CTOR order (by txid) can hold a child ahead of its parent, and admitting it first would drop it;
+		// BCHN's DisconnectedBlockTransactions sorts a block's transactions the same way for that reason.
+		const disconnected = parentsFirst(blocks.reverse().flatMap((txids) => (txids ?? []).map(rawOf)));
 		const held = storage.getMempoolTxids().map(rawOf);
 
 		const affected = new Set<ScriptHash>();
@@ -626,6 +628,28 @@ export function createNode(config?: NodeConfig): Node {
 		storage,
 		subscriptions,
 	};
+}
+
+/** Order raw transactions so each comes after those among them it spends, otherwise keeping their order. */
+function parentsFirst(rawHexes: readonly string[]): string[] {
+	const byTxid = new Map(rawHexes.map((rawHex) => [binToHex(hashTransactionUiOrder(hexToBin(rawHex))), rawHex]));
+	const ordered: string[] = [];
+	const visited = new Set<string>();
+	const visit = (txid: string, rawHex: string) => {
+		if (visited.has(txid)) return;
+		visited.add(txid);
+		const decoded = decodeTransactionBch(hexToBin(rawHex));
+		if (typeof decoded !== "string") {
+			for (const input of decoded.inputs) {
+				const parent = binToHex(input.outpointTransactionHash);
+				const parentHex = byTxid.get(parent);
+				if (parentHex !== undefined) visit(parent, parentHex);
+			}
+		}
+		ordered.push(rawHex);
+	};
+	for (const [txid, rawHex] of byTxid) visit(txid, rawHex);
+	return ordered;
 }
 
 /** Map a storage UtxoEntry to a validation SourceOutput. */

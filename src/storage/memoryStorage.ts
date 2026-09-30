@@ -330,6 +330,18 @@ export function createMemoryStorage(): TestableStorage {
 		const addedUtxoKeys: OutpointKey[] = [];
 		const removedUtxos: UtxoEntry[] = [];
 
+		// Every output first, then every input, as BCHN's ConnectBlock does: under CTOR a block orders its
+		// transactions by txid, so a child can come before the parent it spends. Upstream went transaction
+		// by transaction, and a child ahead of its parent left the coin it spent unspent.
+		for (const tx of block.transactions) {
+			for (const output of indexedOutputs(tx)) {
+				s.utxos.set(output.outpointKey, output.utxo);
+				getOrCreateSet(s.utxosByScriptHash, output.utxo.scriptHash).add(output.outpointKey);
+				addedUtxoKeys.push(output.outpointKey);
+				affected.add(output.utxo.scriptHash);
+			}
+		}
+
 		for (const tx of block.transactions) {
 			// Process inputs (spend UTXOs)
 			for (const input of tx.inputs) {
@@ -349,14 +361,6 @@ export function createMemoryStorage(): TestableStorage {
 						if (shSet.size === 0) s.utxosByScriptHash.delete(existing.scriptHash);
 					}
 				}
-			}
-
-			// Process outputs (create UTXOs)
-			for (const output of indexedOutputs(tx)) {
-				s.utxos.set(output.outpointKey, output.utxo);
-				getOrCreateSet(s.utxosByScriptHash, output.utxo.scriptHash).add(output.outpointKey);
-				addedUtxoKeys.push(output.outpointKey);
-				affected.add(output.utxo.scriptHash);
 			}
 
 			// Store transaction record

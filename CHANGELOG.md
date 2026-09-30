@@ -235,6 +235,11 @@ transaction service's simulated network needs.
   txid, so a parent and child confirmed together could come out child first, with a status hash other
   than Fulcrum's.
 
+- **A block's outputs before its inputs.** `applyBlock` adds every output of a block before it spends
+  any input, as BCHN's `ConnectBlock`, so a block in CTOR order (by txid) with a child ahead of its
+  parent connects. Upstream went transaction by transaction: the child's input found no coin yet, the
+  parent then created it, and a coin the block spent stayed unspent.
+
 - **OP_RETURN outputs are no coins.** Neither the mempool nor a block (mined or applied) indexes an
   output whose script starts with OP_RETURN: no coin, no history for its scripthash, as BCHN's UTXO set
   and Fulcrum's index leave it out. Spending one answers `Missing inputs`. Upstream indexed it as a

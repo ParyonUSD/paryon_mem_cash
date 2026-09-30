@@ -28,7 +28,7 @@ storage.addMempoolTx(tx);
 
 All reader methods that return `UtxoEntry` objects (`getUtxos`, `getUtxoByOutpoint`, `getMempoolUtxo`) return cloned entries with copied `lockingBytecode` buffers. This prevents external code from mutating internal storage state. `getTxidsAtHeight` also returns a shallow copy.
 
-Undo snapshots created during `applyBlock` clone spent UTXOs so that reorgs restore clean data even if callers mutated returned entries.
+Undo snapshots created during `applyBlock` clone spent UTXOs so that reorgs restore clean data even if callers mutated returned entries. `undoBlock` restores no coin the block itself created and spent, and leaves the mempool alone; `Node.disconnectBlocks` rebuilds it. `applyBlock` removes the mempool transactions the block confirms, keeping their children (relinked), and those it conflicts with, with their descendants.
 
 ## Mempool Child Removal
 

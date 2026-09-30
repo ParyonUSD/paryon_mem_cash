@@ -35,9 +35,11 @@ transaction service's simulated network needs.
   CI on Node 24; upstream uses yarn workspaces, `tsc -b`, biome and CI on Node 20, 22 and 24. The
   tests import source, so they no longer need a build first, and they are now type-checked
   (`tsconfig.test.json`), which upstream's are not. `engines.node` is `>=22` (upstream `>=20`).
-- **Tests.** Upstream's 319 tests pass unchanged apart from import paths; `scripthash.test.ts`
-  gains an import of the `ScriptHash` type it used without importing. `src/exports.test.ts` is new
-  and holds both entry points to the 0.0.9 names.
+- **Tests.** Upstream's 319 tests pass unchanged apart from import paths, and apart from fixtures
+  that computed the plain scripthash, which the byte-order fix reverses; `scripthash.test.ts` gains
+  an import of the `ScriptHash` type it used without importing. `src/exports.test.ts` is new and
+  holds both entry points to the 0.0.9 names and the fork's additions. `src/testkit.ts` holds the
+  fork's test transactions and is left out of the build.
 
 ### Behaviour
 

@@ -42,12 +42,15 @@ Tests sit next to the code (`*.test.ts`) and import source through relative path
 - `@bitauth/libauth` is pinned exactly: `src/validation/verifier.ts` deep-imports `@bitauth/libauth/build/lib/...`, internal paths a libauth release may move. Check them when upgrading.
 - Formatting is upstream's (tabs, double quotes); eslint enforces 120 columns. Nothing reformats upstream code wholesale, so its history stays readable with `git blame`.
 
-## Behaviour to keep in mind (upstream 0.0.9, until PLAN.md phases 3 and 4 change it)
+## Behaviour to keep in mind (after phase 3; PLAN.md phase 4 changes what is left)
 
-- Scripthashes are the plain sha256 of the locking bytecode, not Electrum's byte-reversed one.
-- `server.version` negotiates protocol 1.6 only.
-- A mempool conflict and a missing input both answer `bad-txns-inputs-missingorspent`; inputs are looked up before finality is checked.
-- Mempool entries are at height 0 whatever their parents; `listunspent` is in acceptance order.
-- `mine()` confirms the whole mempool and emits synthetic headers; `undoBlock` clears the whole mempool.
+Fixed in phase 3 (see CHANGELOG.md): Electrum scripthash byte order (`computeScriptHash`), protocol 1.4 to 1.5.3, BCHN refusal wording (`SubmitFailure.message`), mempool parent links, BIP68 on mempool coins, forgetting transactions that leave the mempool, real headers, `mine({ include })`, conflicts dropped on block connect, `disconnectBlocks` for reorgs.
+
+Still upstream's, for phase 4:
+- Inputs are looked up before finality is checked, so a non-final transaction that also conflicts or misses an input gets the conflict or missing-input answer (BCHN: non-final first).
+- `listunspent` is in acceptance order, not Fulcrum's; `getBalance` counts mempool outputs the mempool spends; OP_RETURN outputs are indexed as coins.
+- Time-based BIP68 is not enforced; standardness and script refusals are in libauth's words.
+
+Tests of the fork's fixes use `src/testkit.ts` (OP_TRUE transactions, `blockOf` for a block from elsewhere).
 
 `scripts/verify-recovery.sh` checks that a ref from before the restructure (`bf21c89` and earlier) compiles to the published `@mem-cash/*` tarballs of a version. It needs yarn and network access for `npm pack`.

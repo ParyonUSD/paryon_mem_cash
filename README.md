@@ -45,10 +45,18 @@ The folders under `src/` are upstream's five packages, and each keeps its README
 
 [CHANGELOG.md](CHANGELOG.md) has one entry per change, each naming how it differs from upstream. In short, so far:
 
-- One package with two entry points instead of five packages; the same exported names.
+- One package with two entry points instead of five packages; the same exported names, plus `computeScriptHash`, `createBlockHeader` and the types of the new options.
 - pnpm, eslint and vitest in place of yarn workspaces and biome; `@bitauth/libauth` pinned exactly, since validation deep-imports libauth's build internals, which a range could move.
+- Behaviour, where the simulator had to work around upstream (PLAN.md phase 3):
+  - scripthashes in the Electrum byte order (sha256 reversed);
+  - `server.version` negotiates Fulcrum's 1.4 to 1.5.3, three-part versions included;
+  - refusals in BCHN's words: `txn-mempool-conflict (code 18)` against `Missing inputs`, a rebroadcast mempool transaction answered with its txid, `transaction already in block chain`, `bad-txns-nonfinal, non-final transaction (code 64)`;
+  - mempool transactions linked to their parents (height -1, removal cascading, children kept when a block confirms a parent); BIP68 counting a mempool coin from the next block;
+  - a transaction that leaves the mempool unconfirmed is forgotten; a verbose mempool transaction has no block fields;
+  - `mine()` builds real 80-byte headers linked by prev-hash and can confirm chosen transactions (`include`); a block drops the mempool transactions it conflicts with;
+  - `disconnectBlocks` for reorgs, with `undoBlock` no longer wiping the mempool or restoring phantom coins.
 
-The behaviour is still upstream 0.0.9's. The fixes planned for the gaps and the audit's findings are listed in [PLAN.md](PLAN.md), and each will appear in the changelog as it lands. Until then the upstream READMEs under `src/` describe upstream's behaviour, including where it differs from Fulcrum.
+The audit's other findings (finality checked first, Fulcrum's `listunspent` order, and the rest) are PLAN.md's phase 4. Where the upstream READMEs under `src/` describe behaviour these fixes changed, they have been updated.
 
 ## Commands
 

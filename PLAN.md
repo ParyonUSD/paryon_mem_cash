@@ -160,15 +160,17 @@ Done 2026-09-30, on top of `d9fb1b8`, one commit per gap, each with a test that 
 | `7496f00` | `undoBlock` | `storage/undoBlock.test.ts` (3) | no phantom coins; history and records removed by txid; mempool left alone |
 | `dc2da2d` | reorg | `core/disconnectBlocks.test.ts` (7) | `Node.disconnectBlocks(count, { replacementTxs })` |
 | `84139ff` | `mine()` whole mempool | `core/mineInclude.test.ts` (5, 4 failing before) | `mine({ timestamp, include })`; `mine()` no longer clears the mempool |
+| `2c0b1ce` | headers, from review: `setChainTip` still stored zero headers under a hash of the height, so the first mined block did not link to the tip's hex | `core/blockHeaders.test.ts` (1, failing before); `electrum/protocolVersion.test.ts` now expects the stored hex | `setChainTip` builds empty linked headers with `createBlockHeader` |
+| `15da80c` | reorg, from review: a block applied without `rawHex` threw a TypeError after the undo, losing the block and the mempool | `core/disconnectBlocks.test.ts` (1, failing before) | every raw transaction checked before anything changes; any throw after the undo restores the snapshot |
 
 **Order.** As planned, except that parent links come before BIP68: the node passing a mempool coin's height 0 is what both fixes build on, and on its own it changes no acceptance decision, so BIP68's test could fail first on the commit after it.
 
-**Tests.** `pnpm test:unit`: 29 files, 371 tests pass (322 before the phase). `pnpm check` passes. Upstream tests changed only where their fixtures computed the plain scripthash (`accept.test.ts`, `node.test.ts`, `indexer.test.ts`, `test.test.ts`); `exports.test.ts` lists the new exports. `src/testkit.ts` (OP_TRUE transactions, `blockOf`) serves the new tests and is left out of the build.
+**Tests.** `pnpm test:unit`: 29 files, 373 tests pass (322 before the phase, 371 before the review fixes). `pnpm check` passes. Upstream tests changed only where their fixtures computed the plain scripthash (`accept.test.ts`, `node.test.ts`, `indexer.test.ts`, `test.test.ts`); `exports.test.ts` lists the new exports. `src/testkit.ts` (OP_TRUE transactions, `blockOf`) serves the new tests and is left out of the build.
 
 **Choices worth reviewing:**
 - Refusal texts live on `SubmitFailure.message`, required, while `error` and `code` keep BCHN's reject reason and code (for a missing input `bad-txns-inputs-missingorspent` and 16, which upstream's tests assert). The broadcast handlers wrap `message`.
 - `disconnectBlocks` does not notify header subscribers; they hear of the next block. Fulcrum sees a reorg as one step, and the simulator's reorg always mines the new branch at once.
-- `disconnectBlocks` re-admits through full validation at the lower tip, so a transaction whose locktime no longer fits drops out, as BCHN's `removeForReorg` does. Only blocks connected on the node (by `mine` or `applyBlock`) can be disconnected.
+- `disconnectBlocks` re-admits through full validation at the lower tip, so a transaction whose locktime no longer fits drops out, as BCHN's `removeForReorg` does. Only blocks connected on the node (by `mine` or `applyBlock` with each transaction's `rawHex`) can be disconnected; anything else is refused before the node changes.
 - The pluggable storage abstraction stays: the rollback fix did not need it removed.
 
 **What the phase leaves for adoption (phase 5).** The simulator builds blocks for its servers with its own `toProcessedBlock` and seeds coins with the test helpers, computing scripthashes with the plain sha256 (`simNetwork.ts`, `shim.ts` `addressScriptHash`): both must switch to `computeScriptHash`. Its per-block snapshots and seed replay give way to `disconnectBlocks`, its `admit()` to `submitTransaction` and `message`, its headers to the node's. A node method connecting a block given as a header and raw transactions (what `testkit.blockOf` builds) would remove `toProcessedBlock` too; it is not built.
@@ -188,8 +190,8 @@ Each is a candidate to fix in the fork, after which the matching workaround leav
 | No answer for a transaction already confirmed | `transaction already in block chain` while one of its outputs is unspent | `shim.ts` `admit()` | `cffc8c4` |
 | BIP68 evaluates an unconfirmed parent at height 1 | the next block's height | `shim.ts` `admit()` | `afd6946` |
 | Non-final refusal text `bad-txns-nonfinal` | `non-final` wording the wrapper classifies | `shim.ts` | `1ca8b17` |
-| `mine()` emits identical all-zero headers and a synthetic hash | real 80-byte headers linked by prev-hash, so reorgs can be recognised | `headers.ts`, `simNetwork.ts` | `43fbd65` |
-| No reorg; `undoBlock` clears the whole mempool and restores coins created and spent in the same block | disconnected blocks return their transactions to the mempool; spent coins stay spent | `simNetwork.ts` (per-block snapshots) | `aefde6f`, `7496f00`, `dc2da2d` |
+| `mine()` emits identical all-zero headers and a synthetic hash | real 80-byte headers linked by prev-hash, so reorgs can be recognised | `headers.ts`, `simNetwork.ts` | `43fbd65`, `2c0b1ce` |
+| No reorg; `undoBlock` clears the whole mempool and restores coins created and spent in the same block | disconnected blocks return their transactions to the mempool; spent coins stay spent | `simNetwork.ts` (per-block snapshots) | `aefde6f`, `7496f00`, `dc2da2d`, `15da80c` |
 | Mempool entries not linked to their parents (`utxoToSourceOutput` drops height 0), so removal does not cascade and mempool history shows height 0 | parents tracked, children removed with them, height -1 for an unconfirmed parent | `shim.ts` `mempoolParents()`, `withDescendants()` | `312ad81` |
 | `transaction.get` keeps answering after a transaction left the mempool | `No such mempool or blockchain transaction` | `shim.ts` | `8475658`; verbose block fields `1c417d2` |
 | `mine()` confirms the whole mempool | a miner picks what it includes | `simNetwork.ts` (`include`) | `84139ff` |

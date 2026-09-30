@@ -72,7 +72,7 @@ describe("a transaction already confirmed", () => {
 
 	it("answers Missing inputs once a block spent all its outputs, as BCHN no longer knows it", async () => {
 		const node = createTestIndexer();
-		// Two outputs, so the transaction needs no OP_RETURN padding (which mem-cash indexes as a coin)
+		// Two outputs, so the transaction needs no OP_RETURN padding
 		const tx = buildTx([addCoin(node, "aa")], [49_000n, 50_000n]);
 		node.submitTransaction(tx.hex);
 		const spendBoth = buildTx([{ txid: tx.txid, vout: 0 }, { txid: tx.txid, vout: 1 }], [98_000n]);

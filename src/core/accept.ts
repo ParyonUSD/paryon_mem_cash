@@ -9,7 +9,7 @@ import type {
 	UtxoEntry,
 } from "../types/index.js";
 import { computeScriptHash, makeOutpointKey } from "../types/index.js";
-import type { ValidatedTransaction } from "../validation/index.js";
+import { OP_RETURN, type ValidatedTransaction } from "../validation/index.js";
 
 /** Result of accepting a validated transaction into the mempool. */
 export interface AcceptResult {
@@ -27,11 +27,12 @@ export interface AcceptResult {
 export function acceptToMempool(storage: Storage, validatedTx: ValidatedTransaction): AcceptResult {
 	const { txid, rawHex, fee, size, transaction, sourceOutputs } = validatedTx;
 
-	// Compute scripthashes for each output
-	const outputScriptHashes: ScriptHash[] = [];
+	// Compute scripthashes for each output. An OP_RETURN output gets none: it is no coin, and Fulcrum
+	// indexes neither a coin nor history for it; upstream indexed it as a spendable coin.
+	const outputScriptHashes: (ScriptHash | undefined)[] = [];
 	for (const output of transaction.outputs) {
-		const scriptHash = computeScriptHash(output.lockingBytecode);
-		outputScriptHashes.push(scriptHash);
+		const isCoin = output.lockingBytecode[0] !== OP_RETURN;
+		outputScriptHashes.push(isCoin ? computeScriptHash(output.lockingBytecode) : undefined);
 	}
 
 	// Create mempool UTXOs for each output

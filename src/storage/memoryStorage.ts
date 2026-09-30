@@ -88,6 +88,16 @@ function computeStatusHash(entries: HistoryEntry[]): string | null {
 	return binToHex(sha256.hash(utf8ToBin(concatenated)));
 }
 
+/**
+ * A block transaction's outputs that are coins: an OP_RETURN output is none, as BCHN never adds it to the
+ * UTXO set and Fulcrum indexes neither a coin nor history for it. Upstream indexed every output.
+ */
+function indexedOutputs(tx: ProcessedBlock["transactions"][number]) {
+	return tx.outputs.filter((output) => output.utxo.lockingBytecode[0] !== OP_RETURN);
+}
+
+const OP_RETURN = 0x6a;
+
 /** Get or create a set in a map. */
 function getOrCreateSet<K, V>(map: Map<K, Set<V>>, key: K): Set<V> {
 	let set = map.get(key);
@@ -342,7 +352,7 @@ export function createMemoryStorage(): TestableStorage {
 			}
 
 			// Process outputs (create UTXOs)
-			for (const output of tx.outputs) {
+			for (const output of indexedOutputs(tx)) {
 				s.utxos.set(output.outpointKey, output.utxo);
 				getOrCreateSet(s.utxosByScriptHash, output.utxo.scriptHash).add(output.outpointKey);
 				addedUtxoKeys.push(output.outpointKey);
@@ -381,7 +391,7 @@ export function createMemoryStorage(): TestableStorage {
 				);
 				if (removed) txScriptHashes.add(removed.scriptHash);
 			}
-			for (const output of tx.outputs) {
+			for (const output of indexedOutputs(tx)) {
 				txScriptHashes.add(output.utxo.scriptHash);
 			}
 

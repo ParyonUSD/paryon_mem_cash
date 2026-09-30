@@ -235,6 +235,11 @@ transaction service's simulated network needs.
   txid, so a parent and child confirmed together could come out child first, with a status hash other
   than Fulcrum's.
 
+- **OP_RETURN outputs are no coins.** Neither the mempool nor a block (mined or applied) indexes an
+  output whose script starts with OP_RETURN: no coin, no history for its scripthash, as BCHN's UTXO set
+  and Fulcrum's index leave it out. Spending one answers `Missing inputs`. Upstream indexed it as a
+  spendable coin, refused as `bad-txns-input-scriptpubkey-unspendable` when spent.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

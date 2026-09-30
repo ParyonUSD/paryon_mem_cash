@@ -225,6 +225,11 @@ transaction service's simulated network needs.
   them. Upstream gave asm only for OP_RETURN (as hex), knew only P2PKH and P2SH20, and called P2SH32
   nonstandard, with `reqSigs: 1` and no address.
 
+- **`get_balance` leaves out mempool outputs the mempool spends.** The unconfirmed balance is the
+  mempool outputs no mempool transaction spends, less the confirmed coins the mempool spends, as
+  Fulcrum's `Storage::getBalance`. Upstream counted every mempool output, so a chain of mempool
+  transactions added up its intermediate outputs.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

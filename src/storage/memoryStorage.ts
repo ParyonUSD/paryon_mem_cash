@@ -186,15 +186,17 @@ export function createMemoryStorage(): TestableStorage {
 			}
 		}
 
-		// Unconfirmed delta:
-		//   + mempool outputs to this scripthash
+		// Unconfirmed delta, as Fulcrum's Storage::getBalance:
+		//   + mempool outputs to this scripthash that no mempool transaction spends
 		//   - confirmed UTXOs spent in mempool (confirmedSpends only, not unconfirmedSpends)
+		// Upstream added the mempool outputs a mempool child spends too.
 		let unconfirmed = 0n;
 
 		// Add mempool UTXO values
 		const mempoolKeys = s.mempoolUtxosByScriptHash.get(scriptHash);
 		if (mempoolKeys) {
 			for (const key of mempoolKeys) {
+				if (s.mempoolSpends.has(key)) continue;
 				const utxo = s.mempoolUtxos.get(key);
 				if (utxo && counts(utxo)) unconfirmed += utxo.satoshis;
 			}

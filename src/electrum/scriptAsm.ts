@@ -142,7 +142,8 @@ function isValidKeySize(key: Uint8Array): boolean {
 /** MatchPayToPubkey: a 65- or 33-byte key pushed directly, then OP_CHECKSIG. */
 function matchPayToPubkey(script: Uint8Array): Uint8Array | undefined {
 	const size = script.length - 2;
-	if ((size !== 65 && size !== 33) || script[0] !== size || script[script.length - 1] !== OP_CHECKSIG) return undefined;
+	if (size !== 65 && size !== 33) return undefined;
+	if (script[0] !== size || script[script.length - 1] !== OP_CHECKSIG) return undefined;
 	const key = script.slice(1, -1);
 	return isValidKeySize(key) ? key : undefined;
 }

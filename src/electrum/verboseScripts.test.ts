@@ -63,7 +63,10 @@ describe("verbose transaction scripts", () => {
 				// A public key whose first byte no key has: no pubkey output, so no address
 				{ lockingBytecode: Uint8Array.of(33, ...pubkey(0x05), 0xac), valueSatoshis: 1_000n },
 				// 1-of-2 bare multisig: both keys' addresses
-				{ lockingBytecode: Uint8Array.of(0x51, 33, ...pubkey(0x02), 33, ...pubkey(0x03), 0x52, 0xae), valueSatoshis: 1_000n },
+				{
+					lockingBytecode: Uint8Array.of(0x51, 33, ...pubkey(0x02), 33, ...pubkey(0x03), 0x52, 0xae),
+					valueSatoshis: 1_000n,
+				},
 				// 2-of-1 is no multisig
 				{ lockingBytecode: Uint8Array.of(0x52, 33, ...pubkey(0x02), 0x51, 0xae), valueSatoshis: 1_000n },
 			],
@@ -72,7 +75,11 @@ describe("verbose transaction scripts", () => {
 		const verbose = (await node.request("blockchain.transaction.get", [tx.txid, true])) as {
 			vout: { scriptPubKey: { type: string; reqSigs?: number; addresses?: string[] } }[];
 		};
-		const described = verbose.vout.map(({ scriptPubKey: { type, reqSigs, addresses } }) => ({ type, reqSigs, addresses }));
+		const described = verbose.vout.map(({ scriptPubKey: { type, reqSigs, addresses } }) => ({
+			type,
+			reqSigs,
+			addresses,
+		}));
 		expect(described).toEqual([
 			{ type: "nonstandard", reqSigs: undefined, addresses: undefined },
 			{ type: "script", reqSigs: undefined, addresses: undefined },

@@ -23,7 +23,8 @@ describe("a block with a child before its parent", () => {
 			[`${parent.txid}:1`, `${child.txid}:0`].sort(),
 		);
 		// In block order, as Fulcrum's txNum order
-		expect(node.getHistory(OP_TRUE_SCRIPTHASH).map((entry) => entry.txHash).slice(-2)).toEqual([child.txid, parent.txid]);
+		const history = node.getHistory(OP_TRUE_SCRIPTHASH).map((entry) => entry.txHash);
+		expect(history.slice(-2)).toEqual([child.txid, parent.txid]);
 	});
 
 	it("undoes to the coin the parent spent, and nothing the block created", () => {

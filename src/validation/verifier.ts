@@ -242,7 +242,14 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 	}
 	// The limits the policy checks read, as libauth's VM reads them: its table for the version, overridden
 	const limits: PolicyLimits = { ...CONSENSUS_TABLES[version], ...config?.consensus };
-	const vm = createVmFacade(version, standard, config?.consensus);
+	// The policy checks count data carrier bytes as BCHN does, the whole script of each output; libauth's
+	// standard VM counts a length byte more per output and would refuse what BCHN accepts, so its own
+	// count is lifted out of the way
+	const vm = createVmFacade(
+		version,
+		standard,
+		standard ? { ...config?.consensus, maximumDataCarrierBytes: Number.MAX_SAFE_INTEGER } : config?.consensus,
+	);
 	// Consensus-only VM for two-pass script verification (BCHN CheckInputs pattern).
 	// When standard=true, a script failure is re-checked with consensus-only flags to
 	// distinguish mandatory vs non-mandatory violations.

@@ -181,6 +181,13 @@ transaction service's simulated network needs.
   or a non-push unlocking script as `mandatory-script-verify-flag-failed (...) (code 16)`, after the
   fees and finality.
 
+- **Data carrier bytes counted as BCHN.** A standard transaction may hold 223 bytes of OP_RETURN
+  script in all, each output's whole script counted, as BCHN's `nDataSize`; one output of 223 bytes,
+  or two of 111 and 112, is accepted. The verifier builds libauth's standard VM with its data carrier
+  limit lifted, as the policy check covers it. `ConsensusOverrides` gains `maximumDataCarrierBytes`
+  (BCHN's `-datacarriersize`). Upstream (libauth) counted a length byte more per output and refused
+  both.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

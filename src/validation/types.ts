@@ -17,6 +17,8 @@ export interface ConsensusOverrides {
 	operationCostBudgetPerByte?: number;
 	/** Non-standard hashing density budget for private test networks. */
 	hashDigestIterationsPerByteNonstandard?: number;
+	/** Bytes of data carrier (OP_RETURN) script a standard transaction may hold, BCHN's -datacarriersize. */
+	maximumDataCarrierBytes?: number;
 }
 
 /** Configuration for the transaction verifier. */

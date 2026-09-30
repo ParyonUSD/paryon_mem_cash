@@ -78,3 +78,19 @@ describe("AreInputsStandard", () => {
 		expect(await broadcast(node, tx.hex)).toBe(rejected("bad-txns-nonstandard-inputs (code 64)"));
 	});
 });
+
+describe("data carrier bytes", () => {
+	// BCHN sums the size of every data carrier output's script (nDataSize) against -datacarriersize, 223 by
+	// default; libauth counts one more byte per output (its serialized length prefix) and refused both.
+	it("accepts one OP_RETURN output of exactly 223 bytes of script", async () => {
+		const node = standardNode();
+		const tx = buildTx([addP2shCoin(node, "aa")], [toP2sh(99_000n), opReturn(220)]);
+		expect(await broadcast(node, tx.hex)).toBe(tx.txid);
+	});
+
+	it("accepts two OP_RETURN outputs of 223 bytes of script together", async () => {
+		const node = standardNode();
+		const tx = buildTx([addP2shCoin(node, "aa")], [toP2sh(99_000n), opReturn(108), opReturn(109)]);
+		expect(await broadcast(node, tx.hex)).toBe(tx.txid);
+	});
+});

@@ -269,10 +269,10 @@ export type ElectrumCashSchema_1_5_3 = {
 						vout: Array<{
 							n: number;
 							scriptPubKey: {
-								addresses: string[];
+								addresses?: string[];
 								asm: string;
 								hex: string;
-								reqSigs: number;
+								reqSigs?: number;
 								type: string;
 							};
 							tokenData?: TokenData;

@@ -3,9 +3,9 @@ import {
 	decodeTransactionBch,
 	hexToBin,
 	isHex,
-	lockingBytecodeToCashAddress,
 } from "@bitauth/libauth";
 import { computeTxMerkleBranch } from "../types/index.js";
+import { describeLockingScript, scriptToAsm } from "./scriptAsm.js";
 import {
 	ERR_BAD_REQUEST,
 	ERR_DAEMON_ERROR,
@@ -54,57 +54,24 @@ export function get(ctx: ProtocolContext, params: unknown[]): HandlerResult {
 		txid: binToHex(input.outpointTransactionHash),
 		vout: input.outpointIndex,
 		scriptSig: {
-			asm: "",
+			asm: scriptToAsm(input.unlockingBytecode, true),
 			hex: binToHex(input.unlockingBytecode),
 		},
 		sequence: input.sequenceNumber,
 	}));
 
 	const vout = decoded.outputs.map((output, n) => {
-		const scriptHex = binToHex(output.lockingBytecode);
-		const bc = output.lockingBytecode;
-
-		let type = "nonstandard";
-		let asm = "";
-		const addresses: string[] = [];
-
-		if (bc.length === 0) {
-			type = "nulldata";
-		} else if (bc[0] === 0x6a) {
-			type = "nulldata";
-			asm = `OP_RETURN${bc.length > 1 ? ` ${binToHex(bc.slice(1))}` : ""}`;
-		} else if (
-			bc.length === 25 &&
-			bc[0] === 0x76 &&
-			bc[1] === 0xa9 &&
-			bc[2] === 0x14 &&
-			bc[23] === 0x88 &&
-			bc[24] === 0xac
-		) {
-			type = "pubkeyhash";
-			const addrOpts = ctx.addressPrefix
-				? { bytecode: bc, prefix: ctx.addressPrefix as "bitcoincash" }
-				: { bytecode: bc };
-			const result = lockingBytecodeToCashAddress(addrOpts);
-			if (typeof result !== "string") addresses.push(result.address);
-		} else if (bc.length === 23 && bc[0] === 0xa9 && bc[1] === 0x14 && bc[22] === 0x87) {
-			type = "scripthash";
-			const addrOpts = ctx.addressPrefix
-				? { bytecode: bc, prefix: ctx.addressPrefix as "bitcoincash" }
-				: { bytecode: bc };
-			const result = lockingBytecodeToCashAddress(addrOpts);
-			if (typeof result !== "string") addresses.push(result.address);
-		}
-
+		// BCHN's ScriptPubKeyToUniv, as Fulcrum passes it on: upstream gave asm only for OP_RETURN and knew
+		// P2PKH and P2SH20 alone, so a P2SH32 output was nonstandard, without its address
 		const item: {
 			n: number;
 			value: number;
 			scriptPubKey: {
 				asm: string;
 				hex: string;
-				reqSigs: number;
+				reqSigs?: number;
 				type: string;
-				addresses: string[];
+				addresses?: string[];
 			};
 			tokenData?: {
 				category: string;
@@ -115,11 +82,9 @@ export function get(ctx: ProtocolContext, params: unknown[]): HandlerResult {
 			n,
 			value: Number(output.valueSatoshis) / 1e8,
 			scriptPubKey: {
-				asm,
-				hex: scriptHex,
-				reqSigs: type === "nulldata" ? 0 : 1,
-				type,
-				addresses,
+				asm: scriptToAsm(output.lockingBytecode, false),
+				hex: binToHex(output.lockingBytecode),
+				...describeLockingScript(output.lockingBytecode, ctx.addressPrefix),
 			},
 		};
 

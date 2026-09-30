@@ -216,6 +216,15 @@ transaction service's simulated network needs.
   `StorageReader.getBalance` takes the filter as an optional second argument. Upstream ignored the
   parameter.
 
+- **Verbose transactions describe scripts as BCHN.** `blockchain.transaction.get` with `verbose` gives
+  every script's asm as BCHN's `ScriptToAsmStr` (pushes of up to 8 bytes as numbers, `OP_0` to `OP_16`
+  by number, a signature in an unlocking script with its sighash type named), and a locking script's
+  type and addresses as `ScriptPubKeyToUniv`: P2SH32 is `scripthash` with its address, a public key and
+  a multisig's keys give their P2PKH addresses, and `nulldata` or `nonstandard` scripts carry no
+  `reqSigs` or `addresses` (optional in the schema now). Opcodes are named as libauth's 2023 set names
+  them. Upstream gave asm only for OP_RETURN (as hex), knew only P2PKH and P2SH20, and called P2SH32
+  nonstandard, with `reqSigs: 1` and no address.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

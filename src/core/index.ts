@@ -3,6 +3,8 @@ export { acceptToMempool } from "./accept.js";
 export { type BlockHeaderParams, createBlockHeader } from "./blockHeader.js";
 export type {
 	AddUtxoParams,
+	DisconnectOptions,
+	DisconnectResult,
 	MineResult,
 	Node,
 	NodeConfig,

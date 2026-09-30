@@ -96,6 +96,23 @@ export interface MineResult {
 	readonly affectedScriptHashes: ReadonlySet<ScriptHash>;
 }
 
+/** Options for disconnecting blocks. */
+export interface DisconnectOptions {
+	/** Raw transactions admitted before the disconnected ones return, for the new branch to confirm. */
+	readonly replacementTxs?: readonly string[];
+}
+
+/** Result of disconnecting blocks. */
+export interface DisconnectResult {
+	/** The tip's height afterwards. */
+	readonly height: number;
+	/** The transactions admitted to the mempool, in order: replacements, disconnected, then held ones. */
+	readonly returned: readonly string[];
+	/** The disconnected and held transactions no longer valid at the new tip. */
+	readonly dropped: readonly string[];
+	readonly affectedScriptHashes: ReadonlySet<ScriptHash>;
+}
+
 /** The core node engine with in-memory storage. */
 export interface Node extends StorageReader {
 	/** Submit a raw transaction hex. */
@@ -106,6 +123,17 @@ export interface Node extends StorageReader {
 
 	/** Mine a block: confirms all mempool transactions, advances chain tip. */
 	readonly mine: (timestamp?: number) => MineResult;
+
+	/**
+	 * Disconnect the last `count` blocks, as a reorg does before it connects the new branch. Their
+	 * transactions return to the mempool ahead of what it held, each admitted again at the new tip; one
+	 * no longer valid there (a conflict, a lock not final any more) drops out with its descendants.
+	 * `replacementTxs` are admitted first, so the transactions they conflict with are the ones that
+	 * drop: the way to give a new branch a double spend. A replacement the node refuses throws, leaving
+	 * the node as it was. Scripthash subscribers hear once, of the final status; header subscribers
+	 * hear of the next block mined.
+	 */
+	readonly disconnectBlocks: (count: number, options?: DisconnectOptions) => DisconnectResult;
 
 	/** Set chain tip with 11 headers at the given timestamp (sets both height and MTP). */
 	readonly setChainTip: (height: number, timestamp: number) => void;
@@ -237,6 +265,13 @@ export function createNode(config?: NodeConfig): Node {
 	}
 
 	function submitTransaction(rawHex: string): SubmitResult {
+		const result = admit(rawHex);
+		if (result.success) subscriptions.notifyChanges(result.affectedScriptHashes);
+		return result;
+	}
+
+	/** Mempool acceptance without notifying, for a caller that notifies once for many transactions. */
+	function admit(rawHex: string): SubmitResult {
 		// BCHN's sendrawtransaction answers a transaction its mempool already holds with the txid, as
 		// if it had just been accepted, so a client can broadcast again without telling the two apart.
 		const txid = binToHex(hashTransactionUiOrder(hexToBin(rawHex)));
@@ -289,7 +324,6 @@ export function createNode(config?: NodeConfig): Node {
 		}
 
 		const { affectedScriptHashes } = acceptToMempool(storage, validatedTx);
-		subscriptions.notifyChanges(affectedScriptHashes);
 
 		return {
 			success: true,
@@ -442,6 +476,52 @@ export function createNode(config?: NodeConfig): Node {
 		return { height: newHeight, affectedScriptHashes };
 	}
 
+	function disconnectBlocks(count: number, options?: DisconnectOptions): DisconnectResult {
+		const tipHeight = storage.getTip()?.height ?? 0;
+		if (!Number.isInteger(count) || count < 1) throw new Error(`Cannot disconnect ${count} blocks`);
+		const heights = Array.from({ length: count }, (_, i) => tipHeight - i);
+		// Headers set with setChainTip have no block behind them to undo
+		const blocks = heights.map((height) => storage.getTxidsAtHeight(height));
+		if (blocks.some((txids) => txids === undefined)) {
+			throw new Error(`Cannot disconnect ${count} blocks from ${tipHeight}: not every one was connected here`);
+		}
+		const before = storage.snapshot();
+
+		// Oldest block first, each in block order, then the mempool, parents before children
+		const rawOf = (txid: string) => storage.getRawTx(txid) as string;
+		const disconnected = blocks.reverse().flatMap((txids) => (txids ?? []).map(rawOf));
+		const held = storage.getMempoolTxids().map(rawOf);
+
+		const affected = new Set<ScriptHash>(storage.clearMempool());
+		for (const height of heights) for (const sh of storage.undoBlock(height)) affected.add(sh);
+
+		const returned: string[] = [];
+		const dropped: string[] = [];
+		const readmit = (rawHex: string) => {
+			const result = admit(rawHex);
+			// A replacement may be one of the disconnected transactions, which then answers as known
+			if (result.success && !returned.includes(result.txid)) {
+				returned.push(result.txid);
+				for (const sh of result.affectedScriptHashes) affected.add(sh);
+			}
+			return result;
+		};
+		for (const rawHex of options?.replacementTxs ?? []) {
+			const result = readmit(rawHex);
+			if (!result.success) {
+				storage.restore(before);
+				throw new Error(`Replacement refused at height ${tipHeight - count}: ${result.message}`);
+			}
+		}
+		for (const rawHex of [...disconnected, ...held]) {
+			const result = readmit(rawHex);
+			if (!result.success) dropped.push(binToHex(hashTransactionUiOrder(hexToBin(rawHex))));
+		}
+
+		subscriptions.notifyChanges(affected);
+		return { height: tipHeight - count, returned, dropped, affectedScriptHashes: affected };
+	}
+
 	function setVerifier(v: TxVerifier): void {
 		verifier = v;
 	}
@@ -468,6 +548,7 @@ export function createNode(config?: NodeConfig): Node {
 		submitTransaction,
 		debugTransaction,
 		mine,
+		disconnectBlocks,
 		setChainTip,
 		setNextBlockTimestamp,
 		addUtxo,

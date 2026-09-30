@@ -119,6 +119,14 @@ transaction service's simulated network needs.
   removed by txid rather than every record at its height. The mempool is left for the node to
   rebuild (see `disconnectBlocks`); upstream cleared it.
 
+- **Reorgs: `Node.disconnectBlocks(count, { replacementTxs })`.** Disconnects the last `count`
+  blocks: their transactions return to the mempool ahead of what it held, each admitted again at the
+  new tip, and one no longer valid there drops out with its descendants; coins they spend stay spent
+  (by the mempool). Replacement transactions are admitted first, so the ones they conflict with are
+  the ones that drop, which is how a new branch gets a double spend; a refused replacement throws and
+  leaves the node as it was. Subscribers hear once per scripthash. Upstream had only `undoBlock`,
+  which cleared the mempool. New types `DisconnectOptions`, `DisconnectResult`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

@@ -112,6 +112,12 @@ transaction service's simulated network needs.
   past after `mine()` was the block's time; it is now the median of the real timestamps. New export
   `createBlockHeader`.
 
+- **`setChainTip` stores real headers.** Its 11 headers are empty 80-byte headers built the same
+  way, each linked by prev-hash to the one before (or to the header already stored below them), so
+  the tip's hex hashes to the hash the first mined block names as its parent. Upstream stored 80
+  zero bytes under a hash made from the height, and a client checking linkage by hashing hex saw
+  the first mined block as a reorg.
+
 - **A block drops the mempool transactions it conflicts with.** `applyBlock` removes a mempool
   transaction spending a coin the block spends, with its descendants, as BCHN's `removeForBlock`
   does. Upstream kept it, with the coin still marked as spent in the mempool.

@@ -45,6 +45,6 @@ describe("server.version", () => {
 			| { count: number; hex: string; max: number }
 			| { count: number; hex: string; max: number; root: string; branch: string[] }
 		>();
-		expect(headers).toEqual({ count: 2, hex: "0".repeat(320), max: 2016 });
+		expect(headers).toEqual({ count: 2, hex: `${node.getHeader(9)?.hex}${node.getHeader(10)?.hex}`, max: 2016 });
 	});
 });

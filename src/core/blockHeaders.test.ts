@@ -53,6 +53,27 @@ describe("mined headers", () => {
 		expect(node.getHeader(195)).toEqual(genesisSide);
 	});
 
+	it("link from the headers setChainTip stores, as a client hashing them sees it", async () => {
+		// setChainTip stored 80 zero bytes under a hash made from the height, so the tip's header hex
+		// hashed to something other than the hash the first mined block named as its parent, and a client
+		// checking linkage by hashing hex saw a reorg at the first block.
+		const node = createTestIndexer(200);
+		const hashOf = (hex: string) => binToHex(doubleSha256(hexToBin(hex)).reverse());
+		const headerHex = async (height: number) => (await node.request("blockchain.block.header", [height])) as string;
+		const hexes: string[] = [];
+		for (let h = 190; h <= 200; h++) hexes.push(await headerHex(h));
+		expect(new Set(hexes.map(hashOf)).size).toBe(hexes.length);
+		for (let i = 1; i < hexes.length; i++) {
+			expect(hexes[i]?.slice(8, 72)).toBe(reversedHex(hashOf(hexes[i - 1] ?? "")));
+		}
+		const tipHex = hexes.at(-1) ?? "";
+		expect(node.getTip()?.hash).toBe(hashOf(tipHex));
+		expect(uint32(tipHex, 68)).toBe(1_700_000_000);
+		node.mine();
+		const next = await headerHex(201);
+		expect(next.slice(8, 72)).toBe(reversedHex(hashOf(tipHex)));
+	});
+
 	it("reach Electrum clients as they are stored", async () => {
 		const node = createTestIndexer(200);
 		const notified: unknown[] = [];

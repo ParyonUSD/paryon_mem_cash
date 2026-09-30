@@ -146,7 +146,10 @@ export interface Node extends StorageReader {
 	 */
 	readonly disconnectBlocks: (count: number, options?: DisconnectOptions) => DisconnectResult;
 
-	/** Set chain tip with 11 headers at the given timestamp (sets both height and MTP). */
+	/**
+	 * Set the chain tip with 11 empty headers at the given timestamp (sets both height and MTP), each
+	 * linked by prev-hash to the one before, so blocks mined on them link too.
+	 */
 	readonly setChainTip: (height: number, timestamp: number) => void;
 
 	/** Set the timestamp of the NEXT mined block without mining it (test helper). Consumed by the next mine(). */
@@ -361,13 +364,16 @@ export function createNode(config?: NodeConfig): Node {
 	}
 
 	function setChainTip(height: number, timestamp: number): void {
+		// Real empty headers, each naming the one before, so the first block mined on them links to a tip
+		// whose hex hashes to its hash; upstream stored 80 zero bytes under a hash made from the height,
+		// and a client checking linkage by hashing hex saw a reorg at the first mined block. Eleven at
+		// the same time give a median time past of that time.
 		const startHeight = Math.max(0, height - 10);
+		let prevHash = storage.getHeader(startHeight - 1)?.hash ?? "0".repeat(64);
 		for (let h = startHeight; h <= height; h++) {
-			storage._test.header.add({
-				hash: h.toString(16).padStart(64, "0"),
-				height: h,
-				timestamp,
-			});
+			const header = createBlockHeader({ height: h, prevHash, txids: [], timestamp, nonce: 0 });
+			storage._test.header.add(header);
+			prevHash = header.hash;
 		}
 	}
 

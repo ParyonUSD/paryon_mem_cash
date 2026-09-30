@@ -223,12 +223,34 @@ export function createNode(config?: NodeConfig): Node {
 		return result;
 	}
 
+	/** Whether the chain's coins (spent in the mempool or not) hold an output of the transaction. */
+	function hasCoinInChain(rawHex: string, txid: string): boolean {
+		const decoded = decodeTransactionBch(hexToBin(rawHex));
+		if (typeof decoded === "string") return false;
+		return decoded.outputs.some((_, vout) => {
+			const key = makeOutpointKey(txid, vout);
+			if (storage.getMempoolUtxo(key)) return false;
+			return storage.getUtxoByOutpoint(key) !== undefined || storage.getMempoolSpender(key) !== undefined;
+		});
+	}
+
 	function submitTransaction(rawHex: string): SubmitResult {
 		// BCHN's sendrawtransaction answers a transaction its mempool already holds with the txid, as
 		// if it had just been accepted, so a client can broadcast again without telling the two apart.
-		const known = storage.getMempoolTx(binToHex(hashTransactionUiOrder(hexToBin(rawHex))));
+		const txid = binToHex(hashTransactionUiOrder(hexToBin(rawHex)));
+		const known = storage.getMempoolTx(txid);
 		if (known) {
-			return { success: true, txid: known.txid, fee: known.fee, size: known.size, affectedScriptHashes: new Set() };
+			const { fee, size } = known;
+			return { success: true, txid, fee, size, affectedScriptHashes: new Set() };
+		}
+		// And one whose outputs the chain still holds as coins it refuses without validating, the way
+		// BCHN finds out a transaction is already confirmed: by its unspent outputs, not by an index.
+		if (hasCoinInChain(rawHex, txid)) {
+			return toSubmitFailure({
+				code: REJECT_DUPLICATE,
+				error: "txn-already-known",
+				message: "transaction already in block chain",
+			});
 		}
 
 		const resolved = resolveSourceOutputs(rawHex);

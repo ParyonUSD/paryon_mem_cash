@@ -68,6 +68,10 @@ transaction service's simulated network needs.
   without notifying anyone (`affectedScriptHashes` is empty). Upstream refused it as spending its own
   inputs again.
 
+- **A confirmed transaction is refused as `transaction already in block chain`.** While the chain's
+  coins hold one of its outputs (spent in the mempool or not), as BCHN's `sendrawtransaction`
+  decides it. Upstream validated it again and answered that its inputs were missing or spent.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

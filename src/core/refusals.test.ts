@@ -54,3 +54,30 @@ describe("a transaction the node already has", () => {
 		expect(node.getMempoolTxids()).toEqual([tx.txid]);
 	});
 });
+
+describe("a transaction already confirmed", () => {
+	it("answers 'transaction already in block chain' while one of its outputs is unspent", async () => {
+		const node = createTestIndexer();
+		const tx = buildTx([addCoin(node, "aa")], [49_000n, 50_000n]);
+		node.submitTransaction(tx.hex);
+		node.mine();
+		expect(await broadcast(node, tx.hex)).toBe(rejected("transaction already in block chain"));
+
+		// An output spent only in the mempool is still unspent in the chain's coins
+		node.submitTransaction(buildTx([{ txid: tx.txid, vout: 0 }], [48_000n]).hex);
+		expect(await broadcast(node, tx.hex)).toBe(rejected("transaction already in block chain"));
+		node.submitTransaction(buildTx([{ txid: tx.txid, vout: 1 }], [49_000n]).hex);
+		expect(await broadcast(node, tx.hex)).toBe(rejected("transaction already in block chain"));
+	});
+
+	it("answers Missing inputs once a block spent all its outputs, as BCHN no longer knows it", async () => {
+		const node = createTestIndexer();
+		// Two outputs, so the transaction needs no OP_RETURN padding (which mem-cash indexes as a coin)
+		const tx = buildTx([addCoin(node, "aa")], [49_000n, 50_000n]);
+		node.submitTransaction(tx.hex);
+		const spendBoth = buildTx([{ txid: tx.txid, vout: 0 }, { txid: tx.txid, vout: 1 }], [98_000n]);
+		expect(node.submitTransaction(spendBoth.hex).success).toBe(true);
+		node.mine();
+		expect(await broadcast(node, tx.hex)).toBe(rejected("Missing inputs"));
+	});
+});

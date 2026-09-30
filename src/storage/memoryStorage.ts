@@ -208,7 +208,34 @@ export function createMemoryStorage(): TestableStorage {
 		return { confirmed, unconfirmed };
 	}
 
+	/**
+	 * Unspent coins in Fulcrum's listunspent order (Storage.cpp UnspentItem::operator<): confirmed ones by
+	 * height and the position of their transaction in its block, then mempool ones whose transaction has
+	 * no unconfirmed parent, then those whose transaction has one; ties by output index, value, then txid.
+	 * Upstream listed them in the order they arrived, which a client picking the first coin sees.
+	 */
 	function getUtxos(scriptHash: ScriptHash): UtxoEntry[] {
+		const rank = (utxo: UtxoEntry): [number, number] => {
+			if (utxo.height > 0) {
+				// A coin seeded with the test helpers has no block to sit in; it goes after the block's own
+				const position = s.blockTxids.get(utxo.height)?.indexOf(utxo.outpoint.txid) ?? -1;
+				return [utxo.height, position === -1 ? Number.MAX_SAFE_INTEGER : position];
+			}
+			const hasUnconfirmedParent = (s.mempoolTxs.get(utxo.outpoint.txid)?.parents.size ?? 0) > 0;
+			return [Number.MAX_SAFE_INTEGER, hasUnconfirmedParent ? 1 : 0];
+		};
+		return listUtxos(scriptHash)
+			.map((utxo) => ({ utxo, rank: rank(utxo) }))
+			.sort((a, b) =>
+				a.rank[0] - b.rank[0] ||
+				a.rank[1] - b.rank[1] ||
+				a.utxo.outpoint.vout - b.utxo.outpoint.vout ||
+				Number(a.utxo.satoshis - b.utxo.satoshis) ||
+				compareStrings(a.utxo.outpoint.txid, b.utxo.outpoint.txid))
+			.map(({ utxo }) => utxo);
+	}
+
+	function listUtxos(scriptHash: ScriptHash): UtxoEntry[] {
 		const result: UtxoEntry[] = [];
 
 		// Confirmed UTXOs not spent in mempool
@@ -709,6 +736,10 @@ export function createMemoryStorage(): TestableStorage {
 		// Test
 		_test: testHelpers,
 	};
+}
+
+function compareStrings(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** Get or create an array in a map. */

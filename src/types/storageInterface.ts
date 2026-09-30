@@ -29,7 +29,10 @@ export interface StorageReader {
 	/** Get confirmed + unconfirmed balance for a scripthash. */
 	getBalance(scriptHash: ScriptHash): Balance;
 
-	/** Get unspent outputs for a scripthash (confirmed minus mempool-spent, plus mempool outputs). */
+	/**
+	 * Get unspent outputs for a scripthash (confirmed minus mempool-spent, plus mempool outputs), in
+	 * Fulcrum's listunspent order.
+	 */
 	getUtxos(scriptHash: ScriptHash): UtxoEntry[];
 
 	/** Get a transaction record by txid. */

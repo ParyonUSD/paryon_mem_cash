@@ -149,6 +149,12 @@ transaction service's simulated network needs.
   inputs, which the node runs first, in `submitTransaction` and `debugTransaction`. Upstream looked
   the inputs up first and answered `Missing inputs` or `txn-mempool-conflict`.
 
+- **`listunspent` in Fulcrum's order.** `getUtxos`, and so `listunspent`, lists confirmed coins by
+  height and their transaction's position in the block, then mempool coins whose transaction has no
+  unconfirmed parent, then those whose transaction has one; ties by output index, value, then txid
+  (Fulcrum's `UnspentItem::operator<`). A coin seeded with the test helpers, which sits in no block,
+  comes after a block's own at its height. Upstream listed coins in the order they arrived.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

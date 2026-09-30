@@ -1,8 +1,40 @@
 # Changelog
 
+`@paryonusd/mem-cash` is a fork of mem-cash (https://github.com/mainnet-pat/mem-cash) at 0.0.9. Its
+entries each name how the fork differs from upstream. The entries from 0.0.9 down describe upstream's
+versions.
+
 Versions 0.0.7 to 0.0.9 were published to npm by mainnet-pat without their source on GitHub. Their
-entries below are written by the @paryonusd/mem-cash fork, which recovered each version's TypeScript
-from the published build; the code is upstream's and does not differ from it.
+entries below are written by the fork, which recovered each version's TypeScript from the published
+build; the code is upstream's and does not differ from it.
+
+## 0.1.0 (unreleased)
+
+The first version of the fork. Behaviour is upstream 0.0.9's; what changes is how it is packaged.
+
+- **One package instead of five.** `@mem-cash/types`, `storage`, `validation`, `core` and
+  `electrum` become the folders `src/types`, `src/storage`, `src/validation`, `src/core` and
+  `src/electrum` of `@paryonusd/mem-cash`, with upstream's layering. Upstream publishes five
+  packages at one version.
+- **Two entry points.** `@paryonusd/mem-cash` exports every name the five 0.0.9 packages exported,
+  so moving from them is a change of import paths; `@paryonusd/mem-cash/validation` exports what
+  `@mem-cash/validation` did. Upstream has one entry point per package.
+- **`AddUtxoParams` is the node's.** Upstream's storage and core packages both exported an
+  `AddUtxoParams`. From `@paryonusd/mem-cash` the name is core's (the node's `addUtxo`), and the
+  storage test helper's is exported as `StorageAddUtxoParams`.
+- **Validation carries its reject codes.** Upstream's `@mem-cash/validation` imports
+  `@mem-cash/types` at runtime without declaring it as a dependency, so it resolves only when
+  installed next to the other packages. `./validation` includes `src/types` in the package.
+- **`@bitauth/libauth` pinned at `3.1.0-next.8`.** Upstream depends on `^3.1.0-next.8`. The
+  consensus overrides deep-import `@bitauth/libauth/build/lib/...`, internal paths a libauth release
+  may move, so the fork takes a new libauth only on purpose.
+- **Tooling.** pnpm, `tsc` to `dist` (no source maps), eslint with typescript-eslint and vitest,
+  CI on Node 24; upstream uses yarn workspaces, `tsc -b`, biome and CI on Node 20, 22 and 24. The
+  tests import source, so they no longer need a build first, and they are now type-checked
+  (`tsconfig.test.json`), which upstream's are not. `engines.node` is `>=22` (upstream `>=20`).
+- **Tests.** Upstream's 319 tests pass unchanged apart from import paths; `scripthash.test.ts`
+  gains an import of the `ScriptHash` type it used without importing. `src/exports.test.ts` is new
+  and holds both entry points to the 0.0.9 names.
 
 ## 0.0.9
 

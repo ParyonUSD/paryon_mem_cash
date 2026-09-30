@@ -2,7 +2,7 @@
 
 A fork of [mem-cash](https://github.com/mainnet-pat/mem-cash), an in-memory Bitcoin Cash node with a Fulcrum-compatible Electrum server, published in the `@paryonusd` scope as one package. It is the backbone of the transaction service's simulated network (`paryon_transaction_service/test/sim`, PR #67).
 
-Status: phase 1 (import and recover) done, 2026-09-30. The repository carries upstream's history to 0.0.6 and the 0.0.7, 0.0.8 and 0.0.9 changes recovered as one commit each, every one compiling byte for byte to what npm published ([Recovery results](#recovery-results)). Goal 2 is met. Next: phase 2, the restructure.
+Status: phases 1 (import and recover) and 2 (restructure) done, 2026-09-30. The repository carries upstream's history to 0.0.6 and the 0.0.7, 0.0.8 and 0.0.9 changes recovered as one commit each, every one compiling byte for byte to what npm published ([Recovery results](#recovery-results)); goal 2 is met. The five packages are now one, `@paryonusd/mem-cash` 0.1.0 (unpublished), with the 0.0.9 API and behaviour ([Restructure results](#restructure-results)). Next: phase 3, the shimmed gaps.
 
 ## Goals
 
@@ -72,11 +72,11 @@ The match is stricter than "apart from formatting": the source maps are identica
 
 **What the build cannot confirm.** tsc erases type annotations, so their text is reconstructed; the maps fix only their length. In 0.0.8 the facade's parameter type (`ReturnType<typeof createVirtualMachineBch2025>`), the BCH_SPEC cast and the `as never` casts; in 0.0.9 the local `type State = any` (five characters where used, and it must accept both the BCH_SPEC and the common operation types, because the operations table is a union) and the `as (state: State) => State` casts. They compile, have upstream's exact lengths and emit upstream's exact output, but upstream may have spelled them differently.
 
-**Carried over from upstream as published, to revisit in the restructure:**
-- `biome check` passes at 0.0.6 but not at 0.0.9: `node.ts` and `verifier.ts` are not formatted (the source maps show upstream shipped them that way), the deep imports are not in organised order, and `type State = any` trips `noExplicitAny`.
-- `ConsensusOverrides` is not exported from the validation index.
-- None of upstream's tests cover the 0.0.7 to 0.0.9 features (snapshot/restore, `setNextBlockTimestamp`, consensus overrides). The simulator's reorgs rely on snapshot/restore, so it needs tests in the fork.
-- The consensus overrides deep-import `@bitauth/libauth/build/lib/...`. libauth 3.1.0-next.8 has no `exports` map, so these resolve, but they are internal paths a libauth release may move.
+**Carried over from upstream as published, revisited in the restructure:**
+- ~~`biome check` passes at 0.0.6 but not at 0.0.9~~: settled, biome is replaced by eslint. `node.ts` and `verifier.ts` keep upstream's formatting (nothing reformats upstream code wholesale); `type State = any` carries an eslint disable comment saying why no narrower type fits; one 130-column line is wrapped.
+- `ConsensusOverrides` is not exported from the validation index. Still open: exporting it adds to the 0.0.9 API, so it waits for a change that needs it.
+- None of upstream's tests cover the 0.0.7 to 0.0.9 features (snapshot/restore, `setNextBlockTimestamp`, consensus overrides). Still open; the simulator's reorgs rely on snapshot/restore, so phase 3's rollback work adds them.
+- The consensus overrides deep-import `@bitauth/libauth/build/lib/...`. libauth 3.1.0-next.8 has no `exports` map, so these resolve, but they are internal paths a libauth release may move. Settled for now: libauth is pinned exactly at 3.1.0-next.8, so a new release is taken only on purpose.
 
 ## Package layout
 
@@ -86,7 +86,7 @@ mem-cash splits into five packages. Measured on the 0.0.6 source:
 |---|---:|---:|---|
 | `types` | 492 | 161 | libauth |
 | `storage` | 989 | 662 | types |
-| `validation` | 959 | 652 | libauth |
+| `validation` | 959 | 652 | libauth, types (reject codes; imported at runtime but not declared as a dependency) |
 | `core` | 920 | 1270 | types, storage, validation |
 | `electrum` | 2703 | 1795 | all four |
 
@@ -96,9 +96,9 @@ mem-cash splits into five packages. Measured on the 0.0.6 source:
 - Consumers use all five together: `electrum` depends on the other four, so the split saves nothing on install. It only means five versions to publish and keep in step, and upstream already bumps them together.
 - `types` exists only to be shared across packages; within one package it is a folder.
 - `storage` is shaped for pluggable backends (LevelDB, RocksDB, SQLite) that do not exist; only the in-memory one does. That interface is also what makes block rollback awkward: undoing a block goes through a generic storage API instead of restoring state.
-- `validation` is the one part useful on its own: it depends only on libauth and answers "would BCHN accept this transaction?".
+- `validation` is the one part useful on its own: it depends only on libauth and the reject codes in `types`, and answers "would BCHN accept this transaction?".
 
-**Decision:** one package, `@paryonusd/mem-cash`.
+**Decision (settled, done in phase 2):** one package, `@paryonusd/mem-cash`.
 
 ```
 src/
@@ -116,7 +116,28 @@ Entry points:
 | `.` | the whole node and Electrum server | the simulator |
 | `./validation` | BCHN-style transaction checking alone | any consumer that wants to check a transaction before broadcasting it |
 
-The storage abstraction is dropped while fixing rollback and reorgs, and added back only if persistence is ever needed.
+The storage abstraction stays through the restructure. It is removed or simplified only if phase 3's rollback fix needs that, and added back only if persistence is ever needed.
+
+### Restructure results
+
+Done 2026-09-30, on top of `bf21c89`:
+
+| Commit | Change |
+|---|---|
+| `a0af679` | the five packages' `src` moved (`git mv`, so `git log --follow` and blame keep upstream's history) to `src/types`, `storage`, `validation`, `core`, `electrum`; `@mem-cash/*` imports became relative paths; one `package.json` (`@paryonusd/mem-cash` 0.1.0, pnpm, `"type": "module"`, `tsc` to `dist`, `"files": ["dist"]`, exports map), libauth pinned exactly at 3.1.0-next.8; `src/index.ts` and `src/exports.test.ts` |
+| `9ab44fe` | eslint (typescript-eslint recommended, as electrum-session) in place of biome |
+| `2126b7d` | `.github/workflows/ci.yaml`: `pnpm install --frozen-lockfile` (runs `prepare`, which builds), `pnpm check`, `pnpm test:unit`, on Node 24 |
+| `46e196e` | README, CLAUDE.md, the folder READMEs; `verify-recovery.sh` scoped to refs up to `bf21c89` |
+
+**Entry points.** `.` (`dist/index.js`) exports every name the five 0.0.9 packages exported: 184 names, the same value or type kind for each, compared with the TypeScript compiler against the published 0.0.9 `.d.ts` files. The one collision, `AddUtxoParams` (storage and core), keeps core's meaning; storage's is `StorageAddUtxoParams`, the only new name. `./validation` (`dist/validation/index.js`) exports exactly `@mem-cash/validation`'s 42 names and loads only `src/validation` and `src/types`, no node or Electrum code. `src/exports.test.ts` holds both to these names (runtime names compared exactly; type names checked by `tsc -p tsconfig.test.json`); removing the types re-export from `src/index.ts` makes it fail with 1 test and 22 type errors.
+
+**Tests.** `pnpm test:unit`: 18 files, 322 tests pass, no build needed first. Upstream's 319 have the same file and test names as before the move and all pass; the 3 others are `exports.test.ts`. The tests' only changes are import paths, plus one added `import type { ScriptHash }` in `scripthash.test.ts`, which used the type without importing it: upstream never type-checked its tests. `tsconfig.test.json` now does, with `noUncheckedIndexedAccess` off for four unguarded array reads in `mempool.test.ts`.
+
+**Checks.** `pnpm check` (tsc for the source, tsc for the tests, eslint) passes; `pnpm build` emits `dist/` with `.js` and `.d.ts` only. The built package was loaded by name from Node 24 through both entry points (`createIndexer`, `createTxVerifier`, `test.add_utxo`, `get_balance`). `scripts/verify-recovery.sh 0.0.9 da59b6e` still exits 0 from the restructured repository.
+
+**Found on the way:** upstream's `@mem-cash/validation` imports `@mem-cash/types` at runtime (reject codes, in `checks.js` and `verifier.js`) without declaring it, so it resolves only when installed next to the other packages. In one package the question is gone.
+
+**Not done here, by design:** no behaviour change; the storage abstraction kept; `assets/` (upstream's logo) kept but unused; the CI workflow has not run on GitHub (no remote).
 
 ## Gaps the shim works around today
 
@@ -237,7 +258,7 @@ Results (2026-09-30): 24 findings, 23 confirmed by the verifier's own reproducti
 Phases for a workflow, each with a review before the next:
 
 1. **Import and recover (goal 2).** Done 2026-09-30, see [Recovery results](#recovery-results). Create the repo from the 0.0.6 source, keeping upstream history and attribution. Recover 0.0.7, 0.0.8 and 0.0.9 as one commit each, verified by compiling and diffing against the published builds.
-2. **Restructure (goal 1).** Merge the five packages into `src/` folders, one `package.json`, the two entry points, electrum-session's tooling (pnpm, tsc, vitest, eslint, CI). All upstream tests pass unchanged.
+2. **Restructure (goal 1).** Done 2026-09-30, see [Restructure results](#restructure-results). Merge the five packages into `src/` folders, one `package.json`, the two entry points, electrum-session's tooling (pnpm, tsc, vitest, eslint, CI). All upstream tests pass unchanged.
 3. **Fix the shimmed gaps (goal 1).** One commit per gap from the table, each with a test that fails before it. Order by how much shim each fix removes: scripthash order, protocol version, refusal wording, parent links, headers, rollback and reorg.
 4. **Fix the important audit findings (goal 3).** One commit per finding, each with a test that fails before it: finality checked first, Fulcrum's `listunspent` order, mempool heights -1 with the notifications they drive; then the medium ones off our path (time-based BIP68, check order, BCHN reject wording, token filters, P2SH32 in verbose output); low ones fixed where cheap or recorded in the README.
 5. **Adopt (goal 1).** In the transaction service, replace the five `@mem-cash/*` devDependencies with `@paryonusd/mem-cash` and remove every workaround the fork made unnecessary from `shim.ts` and `simNetwork.ts`. Done when the sim suite gives the same outcomes and the same expected failures as before, and the shim holds only multi-server simulation.

@@ -44,22 +44,27 @@ export function getHistory(ctx: ProtocolContext, params: unknown[]): HandlerResu
 	const scriptHash = validateScriptHash(params[0]);
 	if (scriptHash === null) return invalidParams("Invalid scripthash");
 
+	// Fulcrum's parseFromToBlockHeightCommon: from_height from 0, to_height exclusive or -1 for no bound,
+	// and never below from_height. Upstream read to_height as inclusive and any negative as no bound.
 	let fromHeight: number | undefined;
 	if (params[1] !== undefined && params[1] !== null) {
 		const h = validateNonNegativeInt(params[1]);
-		if (h === null) return invalidParams("Invalid from_height");
+		if (h === null) return invalidParams("Bad from_height argument");
 		fromHeight = h;
 	}
 
 	let toHeight: number | undefined;
 	if (params[2] !== undefined && params[2] !== null) {
-		if (typeof params[2] !== "number") return invalidParams("Invalid to_height");
-		// Negative values (e.g. -1) mean "no upper bound"
-		if (params[2] >= 0) toHeight = params[2];
+		const h = params[2];
+		if (!Number.isInteger(h) || (h as number) < -1) return invalidParams("Bad to_height argument");
+		if ((h as number) >= 0) toHeight = h as number;
+		if (toHeight !== undefined && (fromHeight ?? 0) > toHeight) return invalidParams("Bad to_height argument");
 	}
 
-	const confirmed = ctx.node.getHistory(scriptHash, fromHeight, toHeight);
-	// Include mempool only when no upper height bound is specified
+	const confirmed = ctx.node
+		.getHistory(scriptHash, fromHeight)
+		.filter((entry) => toHeight === undefined || entry.height < toHeight);
+	// The mempool only when no upper height bound is given
 	const mempool = toHeight === undefined ? ctx.node.getMempoolHistory(scriptHash) : [];
 
 	const result = [];

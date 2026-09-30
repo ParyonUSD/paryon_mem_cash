@@ -240,6 +240,11 @@ transaction service's simulated network needs.
   and Fulcrum's index leave it out. Spending one answers `Missing inputs`. Upstream indexed it as a
   spendable coin, refused as `bad-txns-input-scriptpubkey-unspendable` when spent.
 
+- **`get_history` ranges as Fulcrum.** `to_height` is exclusive, -1 means no bound, and the mempool
+  is included only without a bound; a negative `from_height` is refused as `Bad from_height argument`,
+  a `to_height` below -1 or below `from_height` as `Bad to_height argument` (-32602). Upstream took
+  `to_height` as inclusive and any negative as no bound, and worded the errors `Invalid ...`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

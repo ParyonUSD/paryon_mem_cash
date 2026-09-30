@@ -10,12 +10,29 @@ import {
 	validateScriptHash,
 } from "./types.js";
 
+type TokenFilter = "include_tokens" | "exclude_tokens" | "tokens_only";
+
+/**
+ * Fulcrum's token filter (parseTokenFilterOptionCommon): trimmed, in any case; without one, every coin,
+ * the default Fulcrum gives a client that negotiated a token-aware protocol, as every version here is.
+ */
+function parseTokenFilter(param: unknown): TokenFilter | null {
+	if (param === undefined) return "include_tokens";
+	const filter = String(param).trim().toLowerCase();
+	return filter === "include_tokens" || filter === "exclude_tokens" || filter === "tokens_only" ? filter : null;
+}
+
+const INVALID_TOKEN_FILTER =
+	'Invalid token filtering option. Specify one of: "exclude_tokens", "include_tokens", "tokens_only"';
+
 /** blockchain.scripthash.get_balance */
 export function getBalance(ctx: ProtocolContext, params: unknown[]): HandlerResult {
 	const scriptHash = validateScriptHash(params[0]);
 	if (scriptHash === null) return invalidParams("Invalid scripthash");
+	const tokenFilter = parseTokenFilter(params[1]);
+	if (tokenFilter === null) return invalidParams(INVALID_TOKEN_FILTER);
 
-	const balance = ctx.node.getBalance(scriptHash);
+	const balance = ctx.node.getBalance(scriptHash, tokenFilter);
 	return ok({
 		confirmed: Number(balance.confirmed),
 		unconfirmed: Number(balance.unconfirmed),
@@ -113,7 +130,12 @@ export function listUnspent(ctx: ProtocolContext, params: unknown[]): HandlerRes
 	const scriptHash = validateScriptHash(params[0]);
 	if (scriptHash === null) return invalidParams("Invalid scripthash");
 
-	const utxos = ctx.node.getUtxos(scriptHash);
+	const tokenFilter = parseTokenFilter(params[1]);
+	if (tokenFilter === null) return invalidParams(INVALID_TOKEN_FILTER);
+
+	const utxos = ctx.node
+		.getUtxos(scriptHash)
+		.filter((utxo) => tokenFilter === "include_tokens" || (tokenFilter === "tokens_only") === (utxo.tokenData !== undefined));
 
 	const result = [];
 	for (const utxo of utxos) {

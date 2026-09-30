@@ -170,14 +170,19 @@ export function createMemoryStorage(): TestableStorage {
 		return [...(s.mempoolHistory.get(scriptHash) ?? [])];
 	}
 
-	function getBalance(scriptHash: ScriptHash): Balance {
+	function getBalance(
+		scriptHash: ScriptHash,
+		tokenFilter: "include_tokens" | "exclude_tokens" | "tokens_only" = "include_tokens",
+	): Balance {
+		const counts = (utxo: UtxoEntry) =>
+			tokenFilter === "include_tokens" || (tokenFilter === "tokens_only") === (utxo.tokenData !== undefined);
 		// Confirmed balance: sum of confirmed UTXOs
 		let confirmed = 0n;
 		const confirmedKeys = s.utxosByScriptHash.get(scriptHash);
 		if (confirmedKeys) {
 			for (const key of confirmedKeys) {
 				const utxo = s.utxos.get(key);
-				if (utxo) confirmed += utxo.satoshis;
+				if (utxo && counts(utxo)) confirmed += utxo.satoshis;
 			}
 		}
 
@@ -191,7 +196,7 @@ export function createMemoryStorage(): TestableStorage {
 		if (mempoolKeys) {
 			for (const key of mempoolKeys) {
 				const utxo = s.mempoolUtxos.get(key);
-				if (utxo) unconfirmed += utxo.satoshis;
+				if (utxo && counts(utxo)) unconfirmed += utxo.satoshis;
 			}
 		}
 
@@ -201,7 +206,7 @@ export function createMemoryStorage(): TestableStorage {
 			if (!entry) continue;
 			for (const spentKey of entry.confirmedSpends) {
 				const utxo = s.utxos.get(spentKey);
-				if (utxo) unconfirmed -= utxo.satoshis;
+				if (utxo && counts(utxo)) unconfirmed -= utxo.satoshis;
 			}
 		}
 

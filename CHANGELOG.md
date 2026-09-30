@@ -210,6 +210,12 @@ transaction service's simulated network needs.
   `addUtxo` under `setChainTip`'s eleven) still counts from time 0. Upstream passed no median time
   past, read as 0, so every time lock was met.
 
+- **Token filters.** `listunspent` and `get_balance` (scripthash and address) take Fulcrum's optional
+  second parameter: `include_tokens` (the default), `exclude_tokens` or `tokens_only`, trimmed and in
+  any case; anything else is refused as invalid params (-32602) with Fulcrum's message.
+  `StorageReader.getBalance` takes the filter as an optional second argument. Upstream ignored the
+  parameter.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

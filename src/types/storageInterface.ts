@@ -26,8 +26,11 @@ export interface StorageReader {
 	/** Get mempool history entries for a scripthash. */
 	getMempoolHistory(scriptHash: ScriptHash): HistoryEntry[];
 
-	/** Get confirmed + unconfirmed balance for a scripthash. */
-	getBalance(scriptHash: ScriptHash): Balance;
+	/**
+	 * Get confirmed + unconfirmed balance for a scripthash: of every coin, or only those without tokens
+	 * or with them, as Fulcrum's token filter.
+	 */
+	getBalance(scriptHash: ScriptHash, tokenFilter?: "include_tokens" | "exclude_tokens" | "tokens_only"): Balance;
 
 	/**
 	 * Get unspent outputs for a scripthash (confirmed minus mempool-spent, plus mempool outputs), in

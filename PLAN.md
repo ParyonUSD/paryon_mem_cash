@@ -2,7 +2,7 @@
 
 A fork of [mem-cash](https://github.com/mainnet-pat/mem-cash), an in-memory Bitcoin Cash node with a Fulcrum-compatible Electrum server, published in the `@paryonusd` scope as one package. It is the backbone of the transaction service's simulated network (`paryon_transaction_service/test/sim`, PR #67).
 
-Status: phases 1 (import and recover) and 2 (restructure) done, 2026-09-30. The repository carries upstream's history to 0.0.6 and the 0.0.7, 0.0.8 and 0.0.9 changes recovered as one commit each, every one compiling byte for byte to what npm published ([Recovery results](#recovery-results)); goal 2 is met. The five packages are now one, `@paryonusd/mem-cash` 0.1.0 (unpublished), with the 0.0.9 API and behaviour ([Restructure results](#restructure-results)). Phase 3 (the shimmed gaps) done, 2026-09-30: every node or Electrum gap in [the table](#gaps-the-shim-works-around-today) is fixed in the package with a test that failed before it ([Gap fix results](#gap-fix-results)); the service's shim still has them until phase 5 adopts the package. Phase 4 (the audit's findings) done, 2026-09-30: the three the bot reaches and every medium one are fixed, and the low ones fixed or recorded in the README's known differences ([Audit fix results](#audit-fix-results)); goal 3 is met. Next: phase 5, adoption in the transaction service.
+Status: phases 1 (import and recover) and 2 (restructure) done, 2026-09-30. The repository carries upstream's history to 0.0.6 and the 0.0.7, 0.0.8 and 0.0.9 changes recovered as one commit each, every one compiling byte for byte to what npm published ([Recovery results](#recovery-results)); goal 2 is met. The five packages are now one, `@paryonusd/mem-cash` 0.1.0 (unpublished), with the 0.0.9 API and behaviour ([Restructure results](#restructure-results)). Phase 3 (the shimmed gaps) done, 2026-09-30: every node or Electrum gap in [the table](#gaps-the-shim-works-around-today) is fixed in the package with a test that failed before it ([Gap fix results](#gap-fix-results)). Phase 4 (the audit's findings) done, 2026-09-30: the three the bot reaches and every medium one are fixed, and the low ones fixed or recorded in the README's known differences ([Audit fix results](#audit-fix-results)); goal 3 is met. Phase 5 (adoption) done, 2026-09-30, on the transaction service's branch `mem-cash-fork` (not pushed): the simulator runs on the fork through a `file:` dependency, `shim.ts` and `headers.ts` are deleted, and the scenarios give the same outcomes and broadcast counts as before ([Adoption results](#adoption-results)); goal 1 is met. Next: phase 6, publishing 0.1.0, after which the service's `file:` dependency becomes that version.
 
 ## Goals
 
@@ -23,7 +23,7 @@ In order:
 
 | | |
 |---|---|
-| Packages | `@mem-cash/types`, `storage`, `validation`, `core`, `electrum`, all pinned exactly at 0.0.9 (devDependencies of the transaction service) |
+| Packages | `@mem-cash/types`, `storage`, `validation`, `core`, `electrum`, all at 0.0.9; the transaction service declared `core`, `electrum` and `validation` as devDependencies, pinned exactly, and got the other two through them. Replaced by `@paryonusd/mem-cash` in phase 5 |
 | Source on GitHub | up to 0.0.6 (`~/git-clones/mem-cash`, head `9d5ba98`) |
 | Published without source | 0.0.7 (2026-07-19), 0.0.8 (2026-07-22), 0.0.9 (2026-07-23); recovered in this repository, see [Recovery results](#recovery-results) |
 | Install scripts | none; only `prepublishOnly` |
@@ -177,24 +177,51 @@ Done 2026-09-30, on top of `d9fb1b8`, one commit per gap, each with a test that 
 
 **Carried over, still open:** `setNextBlockTimestamp` and a successful `snapshot()`/`restore()` round trip have no direct test (`disconnectBlocks` restores a snapshot when a replacement is refused, and that is tested).
 
+### Adoption results
+
+Done 2026-09-30 in the transaction service, on branch `mem-cash-fork` off `origin/main` at `d6874bd` (PR #71 merged), in a worktree; committed, not pushed. The branch was first cut from `999eb01`, the `origin/main` of the start of the phase, and rebased onto `d6874bd` when #71 landed during the work; the comparison below was run again on the rebased branch against `d6874bd`.
+
+| Commit | Change | Workarounds removed |
+|---|---|---|
+| `994855b` | the three `@mem-cash/*` devDependencies (`core`, `electrum`, `validation`; the service never declared `types` and `storage`) replaced by `"@paryonusd/mem-cash": "file:/home/mrzwets/ParyonUSD/paryon_mem_cash"`; imports switched | the scripthash reversal (`shim.ts` `request`, and the one in `memCashSocket.test.ts`'s handle); every scripthash the simulator makes now from `computeScriptHash`. The two have to move together, so they share the commit. `shim.test.ts` now expects `bad-txns-nonfinal, non-final transaction (code 64)` |
+| `ac9259b` | broadcasts go to the node's own `blockchain.transaction.broadcast` handler, relayed ones to `submitTransaction` | `admit()`, `submit()`, `mempoolSpends()`, `rejection()`: conflict and missing inputs, rebroadcast, already in block chain, BIP68 on a mempool parent, FormatStateMessage |
+| `86a1005` | requests go to the node as they are | `request()`'s corrections: `negotiateVersion` (and its two tests, since `MemCashSocket` answers `server.version` for the connection and no client reaches the handle's), the `transaction.get` check for a transaction that left the mempool, the verbose mempool fields |
+| `b9ff5e8` | eviction and `include` read the node's `children` and `parents` | `mempoolParents()`, `withDescendants()` |
+| `788708e` | blocks connected with `applyBlock` alone, rolled back with `disconnectBlocks`, headed by `createBlockHeader`; blocks in CTOR order | the take-out-and-readmit around each block, the per-block snapshots (with `MAX_REORG_DEPTH`), the seed replay, the reorg's hand-made restore of the miner; `headers.ts` deleted |
+| `750efa3` | the lagging index's `get_balance` correction counted for the fork's balance | a correction that assumed 0.0.9's count. A test (an unindexed parent and child) failed before it with `unconfirmed: -99500` where 0 is right: the one fix phase 4 had flagged |
+| `af2cae2` | `shim.ts` deleted; `addressScriptHash` moves to `addressIndex.ts`; `shim.test.ts` renamed `serverAnswers.test.ts` | the rest of `shim.ts` |
+
+**Lines.** `test/sim/chain`'s code (tests aside) went from 898 lines (`shim.ts` 155, `headers.ts` 71, `simNetwork.ts` 559, `addressIndex.ts` 113) to 670 (`simNetwork.ts` 541, `addressIndex.ts` 129): 341 lines removed, 113 added, 228 fewer. What is left is simulation of several servers: the network and its miner, relay, pauses, eviction, the address index's lag.
+
+**Not removed:** the network still builds each block itself (`blockTransactions`, `appendBlock`, `toProcessedBlock`) rather than calling a node's `mine({ include })`. The network owns the chain so that every node, a paused one later, connects the same block, and `mine()` builds a block on one node only; the fork has no method to connect a block given as a header and raw transactions (`testkit.blockOf`'s shape), which would let `toProcessedBlock` go. Mining on the miner node and applying its block elsewhere was considered and left: two nodes' nonce counters can coincide, so a block mined from another node's mempool and its replacement in a reorg could share a hash.
+
+**Checks** (on the rebased branch): `pnpm check` clean; `DEPLOYMENT_NAME=chipnet-16 pnpm test:unit --run` 24 files, 290 tests pass (290 on `d6874bd` too; the unit tests do not load mem-cash); `pnpm test:sim --run`, twice, 11 files and 115 tests pass (117 before: the two version tests went). Before the rebase the same held against `999eb01` (292 unit tests there).
+
+**Scenario comparison.** Every scenario's broadcast summary (broadcasts, accepted, refused as `txn-mempool-conflict`, as `Missing inputs`, otherwise, accepted by main alone and never mined) is the same before and after, in both runs, and so are the pinned violations of the fresh output race. What differs:
+- The txids of some of the service's and the users' transactions: in the peer-transition case the four transactions that die with the block at 1004 after the first, in the manage-loan case the user's transaction and our update on it, in the fresh output race the transactions main accepted alone. The cause is the fork's `listunspent` order (Fulcrum's, `44c990e`): the library's builders take coins by position, so they pick other coins than in 0.0.9's arrival order. Checked by putting the arrival order back in the installed fork (`getUtxos` returning `listUtxos` unsorted): the competitor scenario's txids were then those of the baseline again. A fidelity improvement: it is the order a real Fulcrum gives.
+- In one of the ten full runs on the fork, the fresh output race's diagnostic listed its two price threads as `120@400$, 110@500$` instead of `110@500$, 120@400$`. The same violation, the same threads; only the order of the list, which follows `listunspent`. Two mempool coins tie in Fulcrum's order down to their txid, and the user's transaction there differs from run to run (it did before the change too, in all four baseline runs), so the tie breaks either way. Under 0.0.9's arrival order the list was stable.
+- The CTOR block order changed nothing the scenarios measure.
+
+**Open:** the `file:` dependency points at an absolute path on this machine, so the branch installs nowhere else (CI included) until 0.1.0 is published and the dependency becomes a version. The address index's corrections for unindexed transactions ignore the token filter of `listunspent` and `get_balance` (they put back and take out coins with and without tokens alike); the service sends none, so its answers are unaffected.
+
 ## Gaps the shim works around today
 
-Each is a candidate to fix in the fork, after which the matching workaround leaves the transaction service's shim.
+Each is a candidate to fix in the fork, after which the matching workaround leaves the transaction service's shim. All are fixed, and since phase 5 no workaround is left: the last column names the service commit (branch `mem-cash-fork`) that removed it.
 
-| Gap in mem-cash 0.0.9 | Real behaviour (BCHN / Fulcrum) | Worked around in | Fixed in |
-|---|---|---|---|
-| Scripthashes keyed by the plain sha256 of the locking bytecode | Electrum uses the byte-reversed hash, so real clients' UTXO reads came back empty | `shim.ts` (reverses `params[0]`) | `b47afe4` |
-| `server.version` negotiates protocol 1.6 only, and rejects three-part versions | Fulcrum accepts 1.4 to 1.5.x, as the library and clients send | `shim.ts` (answers `server.version` itself) | `f0e754f` |
-| A mempool conflict and a missing input both answer `bad-txns-inputs-missingorspent` | `txn-mempool-conflict` and `Missing inputs`, which ElectrumWrapper classifies | `shim.ts` `admit()` | `93c7464` |
-| Rebroadcasting a transaction the mempool already holds is refused | silent success with the txid | `shim.ts` `admit()` | `26f1abe` |
-| No answer for a transaction already confirmed | `transaction already in block chain` while one of its outputs is unspent | `shim.ts` `admit()` | `cffc8c4` |
-| BIP68 evaluates an unconfirmed parent at height 1 | the next block's height | `shim.ts` `admit()` | `afd6946` |
-| Non-final refusal text `bad-txns-nonfinal` | `non-final` wording the wrapper classifies | `shim.ts` | `1ca8b17` |
-| `mine()` emits identical all-zero headers and a synthetic hash | real 80-byte headers linked by prev-hash, so reorgs can be recognised | `headers.ts`, `simNetwork.ts` | `43fbd65`, `2c0b1ce` |
-| No reorg; `undoBlock` clears the whole mempool and restores coins created and spent in the same block | disconnected blocks return their transactions to the mempool; spent coins stay spent | `simNetwork.ts` (per-block snapshots) | `aefde6f`, `7496f00`, `dc2da2d`, `15da80c` |
-| Mempool entries not linked to their parents (`utxoToSourceOutput` drops height 0), so removal does not cascade and mempool history shows height 0 | parents tracked, children removed with them, height -1 for an unconfirmed parent | `shim.ts` `mempoolParents()`, `withDescendants()` | `312ad81` |
-| `transaction.get` keeps answering after a transaction left the mempool | `No such mempool or blockchain transaction` | `shim.ts` | `8475658`; verbose block fields `1c417d2` |
-| `mine()` confirms the whole mempool | a miner picks what it includes | `simNetwork.ts` (`include`) | `84139ff` |
+| Gap in mem-cash 0.0.9 | Real behaviour (BCHN / Fulcrum) | Worked around in | Fixed in | Workaround removed |
+|---|---|---|---|---|
+| Scripthashes keyed by the plain sha256 of the locking bytecode | Electrum uses the byte-reversed hash, so real clients' UTXO reads came back empty | `shim.ts` (reverses `params[0]`) | `b47afe4` | `994855b` |
+| `server.version` negotiates protocol 1.6 only, and rejects three-part versions | Fulcrum accepts 1.4 to 1.5.x, as the library and clients send | `shim.ts` (answers `server.version` itself) | `f0e754f` | `86a1005` |
+| A mempool conflict and a missing input both answer `bad-txns-inputs-missingorspent` | `txn-mempool-conflict` and `Missing inputs`, which ElectrumWrapper classifies | `shim.ts` `admit()` | `93c7464` | `ac9259b` |
+| Rebroadcasting a transaction the mempool already holds is refused | silent success with the txid | `shim.ts` `admit()` | `26f1abe` | `ac9259b` |
+| No answer for a transaction already confirmed | `transaction already in block chain` while one of its outputs is unspent | `shim.ts` `admit()` | `cffc8c4` | `ac9259b` |
+| BIP68 evaluates an unconfirmed parent at height 1 | the next block's height | `shim.ts` `admit()` | `afd6946` | `ac9259b` |
+| Non-final refusal text `bad-txns-nonfinal` | `non-final` wording the wrapper classifies | `shim.ts` | `1ca8b17` | `ac9259b` |
+| `mine()` emits identical all-zero headers and a synthetic hash | real 80-byte headers linked by prev-hash, so reorgs can be recognised | `headers.ts`, `simNetwork.ts` | `43fbd65`, `2c0b1ce` | `788708e` |
+| No reorg; `undoBlock` clears the whole mempool and restores coins created and spent in the same block | disconnected blocks return their transactions to the mempool; spent coins stay spent | `simNetwork.ts` (per-block snapshots) | `aefde6f`, `7496f00`, `dc2da2d`, `15da80c` | `788708e` |
+| Mempool entries not linked to their parents (`utxoToSourceOutput` drops height 0), so removal does not cascade and mempool history shows height 0 | parents tracked, children removed with them, height -1 for an unconfirmed parent | `shim.ts` `mempoolParents()`, `withDescendants()` | `312ad81` | `b9ff5e8` |
+| `transaction.get` keeps answering after a transaction left the mempool | `No such mempool or blockchain transaction` | `shim.ts` | `8475658`; verbose block fields `1c417d2` | `86a1005` |
+| `mine()` confirms the whole mempool | a miner picks what it includes | `simNetwork.ts` (`include`) | `84139ff` | not removed: the network builds blocks itself (see [Adoption results](#adoption-results)) |
 
 The audit adds to this table.
 
@@ -236,7 +263,7 @@ As `@paryonusd/electrum-session` does:
 
 | Consumer | Uses | When |
 |---|---|---|
-| `paryon_transaction_service` (`test/sim`) | `.` | first; replaces the five `@mem-cash/*` devDependencies |
+| `paryon_transaction_service` (`test/sim`) | `.` | first; replaces the `@mem-cash/*` devDependencies. Adopted in phase 5 on branch `mem-cash-fork` |
 | V2 fork of the transaction service | `.` | when forked |
 | `paryon_api_service` | `.` (tests) | possibly |
 | `@paryonusd/library` | `./validation` | possibly, to check a transaction before broadcasting it |
@@ -335,5 +362,5 @@ Phases for a workflow, each with a review before the next:
 2. **Restructure (goal 1).** Done 2026-09-30, see [Restructure results](#restructure-results). Merge the five packages into `src/` folders, one `package.json`, the two entry points, electrum-session's tooling (pnpm, tsc, vitest, eslint, CI). All upstream tests pass unchanged.
 3. **Fix the shimmed gaps (goal 1).** Done 2026-09-30, see [Gap fix results](#gap-fix-results). One commit per gap from the table, each with a test that fails before it. Order by how much shim each fix removes: scripthash order, protocol version, refusal wording, parent links, headers, rollback and reorg.
 4. **Fix the important audit findings (goal 3).** Done 2026-09-30, see [Audit fix results](#audit-fix-results). One commit per finding, each with a test that fails before it: finality checked first, Fulcrum's `listunspent` order, mempool heights -1 with the notifications they drive; then the medium ones off our path (time-based BIP68, check order, BCHN reject wording, token filters, P2SH32 in verbose output); low ones fixed where cheap or recorded in the README.
-5. **Adopt (goal 1).** In the transaction service, replace the five `@mem-cash/*` devDependencies with `@paryonusd/mem-cash` and remove every workaround the fork made unnecessary from `shim.ts` and `simNetwork.ts`. Done when the sim suite gives the same outcomes and the same expected failures as before, and the shim holds only multi-server simulation.
+5. **Adopt (goal 1).** Done 2026-09-30, see [Adoption results](#adoption-results). In the transaction service, replace the five `@mem-cash/*` devDependencies with `@paryonusd/mem-cash` and remove every workaround the fork made unnecessary from `shim.ts` and `simNetwork.ts`. Done when the sim suite gives the same outcomes and the same expected failures as before, and the shim holds only multi-server simulation.
 6. **Publish** 0.1.0, and offer the upstream PRs decided in decision 4.

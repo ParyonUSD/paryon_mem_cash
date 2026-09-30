@@ -574,6 +574,16 @@ export function createMemoryStorage(): TestableStorage {
 		}
 
 		s.mempoolTxs.delete(removeTxid);
+		forgetUnconfirmedRawTx(removeTxid);
+	}
+
+	/**
+	 * A node only knows the transactions of its chain and its mempool, so one that leaves the mempool
+	 * without confirming goes from the raw transactions too; upstream kept it answering
+	 * blockchain.transaction.get.
+	 */
+	function forgetUnconfirmedRawTx(txid: Txid): void {
+		if (!s.txIndex.has(txid)) s.rawTxs.delete(txid);
 	}
 
 	/**
@@ -622,6 +632,7 @@ export function createMemoryStorage(): TestableStorage {
 				affected.add(scriptHash);
 			}
 		}
+		for (const txid of s.mempoolTxs.keys()) forgetUnconfirmedRawTx(txid);
 		s.mempoolTxs.clear();
 		s.mempoolUtxos.clear();
 		s.mempoolUtxosByScriptHash.clear();

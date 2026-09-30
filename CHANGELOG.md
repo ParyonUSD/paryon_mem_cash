@@ -92,6 +92,11 @@ transaction service's simulated network needs.
   `CheckSequenceLocks` does, so any lock above 0 on an unconfirmed parent is refused as
   `non-BIP68-final (code 64)`. Upstream counted it from height 1 and accepted it.
 
+- **A transaction that leaves the mempool unconfirmed is forgotten.** Removing it (with its
+  descendants) or clearing the mempool drops its raw transaction unless a block holds it, so
+  `blockchain.transaction.get` answers `No such mempool or blockchain transaction`, as Fulcrum over
+  BCHN does. Upstream kept every raw transaction it had ever accepted.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

@@ -150,3 +150,13 @@ export function checkTokens(
 	}
 	return { ok: true };
 }
+
+/**
+ * BCHN FormatMoney (util/moneystr.cpp): satoshis as BCH with eight decimals, trailing zeros trimmed down
+ * to two, which CheckTxInputs quotes in bad-txns-in-belowout.
+ */
+export function formatMoney(satoshis: bigint): string {
+	const abs = satoshis < 0n ? -satoshis : satoshis;
+	const fraction = (abs % 100_000_000n).toString().padStart(8, "0").replace(/0{1,6}$/, "").padEnd(2, "0");
+	return `${satoshis < 0n ? "-" : ""}${abs / 100_000_000n}.${fraction}`;
+}

@@ -52,7 +52,13 @@ import {
 	DEFAULT_MIN_RELAY_FEE_PER_KB,
 	DUST_RELAY_FEE_PER_KB,
 } from "./constants.js";
-import { checkContextual, checkTokens, checkTransactionCommon, type ConsensusLimits } from "./consensus.js";
+import {
+	checkContextual,
+	checkTokens,
+	checkTransactionCommon,
+	type ConsensusLimits,
+	formatMoney,
+} from "./consensus.js";
 import { checkInputsStandard, checkStandardTransaction, type PolicyLimits } from "./policy.js";
 import type {
 	ChainState,
@@ -397,7 +403,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 				ok: false,
 				code: REJECT_INVALID,
 				error: "bad-txns-in-belowout",
-				debugMessage: `value in (${inputSum}) < value out (${outputSum})`,
+				debugMessage: `value in (${formatMoney(inputSum)}) < value out (${formatMoney(outputSum)})`,
 			};
 		}
 

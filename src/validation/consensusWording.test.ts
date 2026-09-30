@@ -60,3 +60,17 @@ describe("ContextualCheckTransaction", () => {
 		expect(await broadcast(node, tx)).toBe(rejected("bad-txns-undersize (code 64)"));
 	});
 });
+
+describe("CheckTxInputs", () => {
+	it("gives bad-txns-in-belowout's amounts in BCH, as BCHN's FormatMoney does", async () => {
+		const node = createTestIndexer(200);
+		const small = buildTx([addCoin(node, "aa", 100_000n)], [200_000n]);
+		expect(await broadcast(node, small.hex)).toBe(
+			rejected("bad-txns-in-belowout, value in (0.001) < value out (0.002) (code 16)"),
+		);
+		const whole = buildTx([addCoin(node, "bb", 100_000_000n)], [100_000_001n]);
+		expect(await broadcast(node, whole.hex)).toBe(
+			rejected("bad-txns-in-belowout, value in (1.00) < value out (1.00000001) (code 16)"),
+		);
+	});
+});

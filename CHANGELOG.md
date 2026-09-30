@@ -251,6 +251,9 @@ transaction service's simulated network needs.
   DaemonError({'code': -5, 'message': 'No such mempool or blockchain transaction. ...'})`. Upstream
   answered 2 for the first and 1 with the bare message for the second.
 
+- **`bad-txns-in-belowout` quotes BCH amounts.** Its debug message gives the amounts as BCHN's
+  `FormatMoney` does, `value in (0.001) < value out (0.002)`. Upstream quoted satoshis.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

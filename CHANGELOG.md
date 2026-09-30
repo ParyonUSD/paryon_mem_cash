@@ -142,6 +142,13 @@ transaction service's simulated network needs.
   relinked. A listed transaction whose unconfirmed parent is not listed, or one not in the mempool,
   throws. Upstream confirmed the whole mempool and cleared it. New type `MineOptions`.
 
+- **Finality before inputs.** A transaction that is not final yet is refused as
+  `bad-txns-nonfinal, non-final transaction (code 64)` even when an input is missing or conflicts
+  with the mempool, as BCHN's `AcceptToMemoryPoolWorker` checks finality before it looks up inputs.
+  The verifier gains an optional `checkBeforeInputs(rawHex, chainState)` with the checks that need no
+  inputs, which the node runs first, in `submitTransaction` and `debugTransaction`. Upstream looked
+  the inputs up first and answered `Missing inputs` or `txn-mempool-conflict`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

@@ -148,4 +148,12 @@ export interface TxVerifier {
 		sourceOutputs: readonly SourceOutput[],
 		chainState: ChainState,
 	): DebugResult;
+	/**
+	 * The checks BCHN makes before it looks up a transaction's inputs, which need none of them: the
+	 * transaction on its own, then whether it is final. A caller that looks the inputs up itself runs
+	 * these first, so their refusal wins over a conflict or a missing input, as it does in BCHN. `verify`
+	 * and `debug` run them too. Optional, so a verifier written before it still fits; without it every
+	 * check waits for the inputs.
+	 */
+	checkBeforeInputs?(rawHex: string, chainState: ChainState): { readonly success: true } | VerifyFailure;
 }

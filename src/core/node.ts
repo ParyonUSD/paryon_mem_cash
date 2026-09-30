@@ -279,6 +279,19 @@ export function createNode(config?: NodeConfig): Node {
 		});
 	}
 
+	/**
+	 * The verifier's checks that need no inputs, made before the node looks them up, as BCHN does: a
+	 * transaction not final yet is refused as such even where a lagging server lacks its inputs, or it
+	 * conflicts with the mempool. Upstream looked the inputs up first and answered Missing inputs.
+	 */
+	function checkBeforeInputs(rawHex: string): SubmitFailure | undefined {
+		if (!verifier?.checkBeforeInputs) return undefined;
+		const chainState = deriveChainState();
+		if (!chainState) return toSubmitFailure({ code: REJECT_INVALID, error: "No chain tip set" });
+		const result = verifier.checkBeforeInputs(rawHex, chainState);
+		return result.success ? undefined : toSubmitFailure(result);
+	}
+
 	function submitTransaction(rawHex: string): SubmitResult {
 		const result = admit(rawHex);
 		if (result.success) subscriptions.notifyChanges(result.affectedScriptHashes);
@@ -304,6 +317,9 @@ export function createNode(config?: NodeConfig): Node {
 				message: "transaction already in block chain",
 			});
 		}
+
+		const refused = checkBeforeInputs(rawHex);
+		if (refused) return refused;
 
 		const resolved = resolveSourceOutputs(rawHex);
 		if (!resolved.ok) return toSubmitFailure(resolved);
@@ -353,6 +369,9 @@ export function createNode(config?: NodeConfig): Node {
 		if (!verifier) {
 			return toSubmitFailure({ code: REJECT_INVALID, error: "No verifier configured" });
 		}
+		const refused = checkBeforeInputs(rawHex);
+		if (refused) return refused;
+
 		const resolved = resolveSourceOutputs(rawHex);
 		if (!resolved.ok) return toSubmitFailure(resolved);
 

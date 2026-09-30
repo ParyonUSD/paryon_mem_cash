@@ -63,6 +63,7 @@ import type {
 	TxVerifier,
 	TxVerifierConfig,
 	ValidatedTransaction,
+	VerifyFailure,
 	VerifyResult,
 	VmVersion,
 } from "./types.js";
@@ -203,8 +204,8 @@ type PipelineResult = PipelineSuccess | PipelineFailure;
  * Pipeline order (matching BCHN AcceptToMemoryPool):
  *  1. Decode tx hex
  *  2. Null prevout check
- *  3. Validate sourceOutputs length
- *  4. Locktime finality check
+ *  3. Locktime finality check (1-3 are checkBeforeInputs: they need no source outputs)
+ *  4. Validate sourceOutputs length
  *  5. Coinbase maturity check
  *  6. Unspendable inputs check
  *  7. Input value ranges check
@@ -240,12 +241,15 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 	// distinguish mandatory vs non-mandatory violations.
 	const consensusVm = standard ? createVmFacade(version, false, config?.consensus) : null;
 
-	/** Run pre-VM pipeline steps 1-12. Returns validated data or error. */
-	function preVmPipeline(
+	/**
+	 * Decode, then the checks BCHN makes before it looks up the inputs (TxVerifier.checkBeforeInputs):
+	 * the null prevout of CheckRegularTransaction and the finality of
+	 * ContextualCheckTransactionForCurrentBlock. None of them reads a source output.
+	 */
+	function beforeInputs(
 		rawHex: string,
-		sourceOutputs: readonly SourceOutput[],
 		chainState: ChainState,
-	): PipelineResult {
+	): { ok: true; decoded: Transaction } | PipelineFailure {
 		const spendHeight = chainState.height + 1;
 
 		// 1. Decode tx hex
@@ -268,17 +272,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		const nullCheck = checkNullPrevout(prevoutInputs);
 		if (!nullCheck.ok) return nullCheck;
 
-		// 3. Validate sourceOutputs count matches inputs
-		if (sourceOutputs.length !== decoded.inputs.length) {
-			return {
-				ok: false,
-				code: REJECT_INVALID,
-				error: "bad-txns-inputs-missingorspent",
-				debugMessage: `sourceOutputs length (${sourceOutputs.length}) does not match inputs length (${decoded.inputs.length})`,
-			};
-		}
-
-		// 4. Locktime finality check
+		// 3. Locktime finality check
 		const locktimeCheck = checkLocktimeFinality(
 			decoded.locktime,
 			decoded.inputs,
@@ -288,6 +282,32 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		// The mempool refuses a transaction that is not final yet as non-standard (64), not invalid: it may
 		// be valid in a later block (BCHN AcceptToMemoryPoolWorker re-codes ContextualCheckTransaction's)
 		if (!locktimeCheck.ok) return { ...locktimeCheck, code: REJECT_NONSTANDARD };
+
+		return { ok: true, decoded };
+	}
+
+	/** Run pre-VM pipeline steps 1-12. Returns validated data or error. */
+	function preVmPipeline(
+		rawHex: string,
+		sourceOutputs: readonly SourceOutput[],
+		chainState: ChainState,
+	): PipelineResult {
+		const spendHeight = chainState.height + 1;
+
+		// 1-3. Decode, null prevout, finality
+		const before = beforeInputs(rawHex, chainState);
+		if (!before.ok) return before;
+		const { decoded } = before;
+
+		// 4. Validate sourceOutputs count matches inputs
+		if (sourceOutputs.length !== decoded.inputs.length) {
+			return {
+				ok: false,
+				code: REJECT_INVALID,
+				error: "bad-txns-inputs-missingorspent",
+				debugMessage: `sourceOutputs length (${sourceOutputs.length}) does not match inputs length (${decoded.inputs.length})`,
+			};
+		}
 
 		// Re-encode to get canonical bytes for size and txid
 		const encodedBytes = encodeTransactionBch(decoded);
@@ -536,5 +556,10 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		return { success: true, txid, fee, size, validatedTx, inputResults };
 	}
 
-	return { verify, debug };
+	function checkBeforeInputs(rawHex: string, chainState: ChainState): { readonly success: true } | VerifyFailure {
+		const before = beforeInputs(rawHex, chainState);
+		return before.ok ? { success: true } : pipelineToFailure(before);
+	}
+
+	return { verify, debug, checkBeforeInputs };
 }

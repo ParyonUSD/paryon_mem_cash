@@ -5,6 +5,7 @@ export type {
 	AddUtxoParams,
 	DisconnectOptions,
 	DisconnectResult,
+	MineOptions,
 	MineResult,
 	Node,
 	NodeConfig,

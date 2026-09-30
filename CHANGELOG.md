@@ -127,6 +127,12 @@ transaction service's simulated network needs.
   leaves the node as it was. Subscribers hear once per scripthash. Upstream had only `undoBlock`,
   which cleared the mempool. New types `DisconnectOptions`, `DisconnectResult`.
 
+- **`mine({ include })` confirms chosen transactions.** `mine()` takes `{ timestamp, include }` (a
+  number is still the timestamp): with `include`, the block holds only the listed mempool
+  transactions, in mempool order, and the rest stay in the mempool, children of a confirmed parent
+  relinked. A listed transaction whose unconfirmed parent is not listed, or one not in the mempool,
+  throws. Upstream confirmed the whole mempool and cleared it. New type `MineOptions`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

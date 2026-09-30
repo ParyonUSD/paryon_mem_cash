@@ -88,6 +88,14 @@ export interface SubmitFailure {
 /** Result of submitting a transaction. */
 export type SubmitResult = SubmitSuccess | SubmitFailure;
 
+/** Options for mining a block. */
+export interface MineOptions {
+	/** The block's time; by default the one setNextBlockTimestamp set, or one never before the tip's. */
+	readonly timestamp?: number;
+	/** The mempool transactions the block confirms, by txid; by default all of them. */
+	readonly include?: readonly string[];
+}
+
 /** Result of mining blocks. */
 export interface MineResult {
 	/** New chain tip height after mining. */
@@ -121,8 +129,11 @@ export interface Node extends StorageReader {
 	/** Debug a raw transaction: run full validation with per-input traces, without accepting to mempool. */
 	readonly debugTransaction: (rawHex: string) => DebugResult | SubmitFailure;
 
-	/** Mine a block: confirms all mempool transactions, advances chain tip. */
-	readonly mine: (timestamp?: number) => MineResult;
+	/**
+	 * Mine a block on the tip: the whole mempool, or only the transactions `include` lists (each with
+	 * its unconfirmed parents listed too), the rest staying in the mempool. A number is the timestamp.
+	 */
+	readonly mine: (options?: number | MineOptions) => MineResult;
 
 	/**
 	 * Disconnect the last `count` blocks, as a reorg does before it connects the new branch. Their
@@ -408,7 +419,24 @@ export function createNode(config?: NodeConfig): Node {
 		storage.restore(snap);
 	}
 
-	function mine(timestamp?: number): MineResult {
+	/** The mempool transactions a block holds: all of them, or the listed ones with their parents. */
+	function blockTxids(include: readonly string[] | undefined): string[] {
+		const pool = storage.getMempoolTxids();
+		if (include === undefined) return pool;
+		const wanted = new Set(include);
+		for (const txid of wanted) {
+			const entry = storage.getMempoolTx(txid);
+			if (!entry) throw new Error(`${txid} is not in the mempool`);
+			const missing = [...entry.parents].find((parent) => !wanted.has(parent));
+			if (missing) throw new Error(`${txid} cannot be mined without its unconfirmed parent ${missing}`);
+		}
+		// Mempool order puts parents before children, as a block must
+		return pool.filter((txid) => wanted.has(txid));
+	}
+
+	function mine(options?: number | MineOptions): MineResult {
+		const { timestamp, include }: MineOptions = typeof options === "number" ? { timestamp: options } : (options ?? {});
+		const txids = blockTxids(include);
 		const tip = storage.getTip();
 		const newHeight = (tip?.height ?? 0) + 1;
 		// Precedence: explicit arg > pending (setNextBlockTimestamp) > monotonic default. The default never goes
@@ -416,7 +444,6 @@ export function createNode(config?: NodeConfig): Node {
 		const ts = timestamp ?? pendingTimestamp ?? Math.max(1700000000 + newHeight, (tip?.timestamp ?? 0) + 1);
 		pendingTimestamp = undefined;
 
-		const txids = storage.getMempoolTxids();
 		const processedTxs: ProcessedBlockTx[] = [];
 
 		for (const txid of txids) {
@@ -449,8 +476,8 @@ export function createNode(config?: NodeConfig): Node {
 			processedTxs.push(ptx);
 		}
 
-		storage.clearMempool();
-
+		// applyBlock takes the block's transactions out of the mempool and leaves the rest, relinking the
+		// children of what it confirmed; upstream cleared the mempool here, as every transaction was mined
 		// A real header on the tip, so blocks have distinct hashes that link, and a client can tell a
 		// reorg; upstream stored 80 zero bytes under a hash of the height, then rewrote the last 11
 		// headers (setChainTip) to set the median time past, which the real timestamps now give.

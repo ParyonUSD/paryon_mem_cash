@@ -13,7 +13,7 @@ import { createIndexer } from "./indexer.js";
 
 /** OP_1 — always succeeds. */
 const OP_TRUE = Uint8Array.of(0x51);
-const OP_TRUE_SCRIPT_HASH = binToHex(sha256.hash(OP_TRUE));
+const OP_TRUE_SCRIPT_HASH = binToHex(sha256.hash(OP_TRUE).reverse());
 
 /** Build a raw tx hex spending one input with two OP_TRUE outputs (≥65 bytes). */
 function buildRawTx(

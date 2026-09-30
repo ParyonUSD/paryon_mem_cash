@@ -152,7 +152,7 @@ describe("test protocol handlers", () => {
 			node.setChainTip(200, 1700000000);
 
 			const OP_TRUE = Uint8Array.of(0x51);
-			const scriptHash = binToHex(sha256.hash(OP_TRUE));
+			const scriptHash = binToHex(sha256.hash(OP_TRUE).reverse());
 			const parentTxid = "aa".repeat(32);
 			node.addUtxo({
 				txid: parentTxid,

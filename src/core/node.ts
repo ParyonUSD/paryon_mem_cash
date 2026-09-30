@@ -22,6 +22,7 @@ import type {
 } from "../types/index.js";
 import {
 	computeMedianTimePast,
+	computeScriptHash,
 	makeOutpointKey,
 	REJECT_INVALID,
 	REJECT_MALFORMED,
@@ -286,7 +287,7 @@ export function createNode(config?: NodeConfig): Node {
 				throw new Error(`Invalid address: ${decoded}`);
 			}
 			lockingBytecode = lockingBytecode ?? decoded.bytecode;
-			scriptHash = scriptHash ?? binToHex(sha256.hash(decoded.bytecode));
+			scriptHash = scriptHash ?? computeScriptHash(decoded.bytecode);
 		}
 
 		if (!scriptHash) {

@@ -10,7 +10,10 @@ build; the code is upstream's and does not differ from it.
 
 ## 0.1.0 (unreleased)
 
-The first version of the fork. Behaviour is upstream 0.0.9's; what changes is how it is packaged.
+The first version of the fork: upstream 0.0.9 in one package, with the behaviour fixes the Paryon
+transaction service's simulated network needs.
+
+### Packaging
 
 - **One package instead of five.** `@mem-cash/types`, `storage`, `validation`, `core` and
   `electrum` become the folders `src/types`, `src/storage`, `src/validation`, `src/core` and
@@ -35,6 +38,15 @@ The first version of the fork. Behaviour is upstream 0.0.9's; what changes is ho
 - **Tests.** Upstream's 319 tests pass unchanged apart from import paths; `scripthash.test.ts`
   gains an import of the `ScriptHash` type it used without importing. `src/exports.test.ts` is new
   and holds both entry points to the 0.0.9 names.
+
+### Behaviour
+
+- **Scripthashes in the Electrum byte order.** The node files coins, history and subscriptions
+  under the sha256 of the locking bytecode with its bytes reversed, the scripthash the Electrum
+  protocol defines and clients send; `blockchain.address.get_scripthash` and `utxo.get_info` answer
+  with it. Upstream used the hash unreversed, so a real client's `scripthash.*` requests found
+  nothing. New export `computeScriptHash(lockingBytecode)`. Upstream tests that computed the plain
+  hash now reverse it.
 
 ## 0.0.9
 

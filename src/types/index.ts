@@ -27,6 +27,7 @@ export { computeMedianTimePast } from "./mtp.js";
 export {
 	type BlockHash,
 	type BlockHeight,
+	computeScriptHash,
 	makeOutpointKey,
 	type OutpointKey,
 	parseOutpointKey,

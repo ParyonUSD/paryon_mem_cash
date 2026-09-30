@@ -29,15 +29,15 @@ All 53 Fulcrum client RPC methods are implemented:
 dispatch into a single instance. All interaction goes through `request()`.
 
 ```typescript
-import { createIndexer } from "@paryonusd/mem-cash";
-import { binToHex, sha256 } from "@bitauth/libauth";
+import { computeScriptHash, createIndexer } from "@paryonusd/mem-cash";
 
 const indexer = createIndexer({ standard: false });
 indexer.setChainTip(200, 1700000000);
 
 // OP_1 (always-true script) for simplicity
 const lockingBytecode = Uint8Array.of(0x51);
-const scriptHash = binToHex(sha256.hash(lockingBytecode));
+// The Electrum scripthash: sha256 of the locking bytecode, byte-reversed
+const scriptHash = computeScriptHash(lockingBytecode);
 
 indexer.addUtxo({
     txid: "aa".repeat(32),

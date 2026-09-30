@@ -14,7 +14,7 @@ import type { Notification } from "./subscriptionManager.js";
 
 /** OP_1 -- always succeeds. */
 const OP_TRUE = Uint8Array.of(0x51);
-const OP_TRUE_SH = binToHex(sha256.hash(OP_TRUE));
+const OP_TRUE_SH = binToHex(sha256.hash(OP_TRUE).reverse());
 
 /** Build a raw tx hex spending one input with two OP_TRUE outputs (>=65 bytes). */
 function buildRawTx(
@@ -465,7 +465,7 @@ describe("createNode", () => {
 			const address = "bitcoincash:qz46h2at4w46h2at4w46h2at4w46h2at4vetysdy5q";
 			const decoded = cashAddressToLockingBytecode(address);
 			if (typeof decoded === "string") throw new Error(decoded);
-			const expectedSh = binToHex(sha256.hash(decoded.bytecode));
+			const expectedSh = binToHex(sha256.hash(decoded.bytecode).reverse());
 
 			node.addUtxo({
 				txid: "ee".repeat(32),

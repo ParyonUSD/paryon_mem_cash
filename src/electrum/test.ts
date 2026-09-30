@@ -7,7 +7,7 @@ import {
 	utf8ToBin,
 } from "@bitauth/libauth";
 import type { TestableStorage } from "../storage/index.js";
-import type { TokenData } from "../types/index.js";
+import { computeScriptHash, type TokenData } from "../types/index.js";
 import type { Handler, HandlerResult } from "./types.js";
 import { invalidParams, ok } from "./types.js";
 
@@ -85,7 +85,7 @@ export function createTestHandlers(storage: TestableStorage): ReadonlyMap<string
 			return invalidParams(`Invalid address: ${decoded}`);
 		}
 		const { bytecode } = decoded;
-		const scriptHash = binToHex(sha256.hash(bytecode));
+		const scriptHash = computeScriptHash(bytecode);
 
 		// Parse token data
 		let tokenData: TokenData | undefined;
@@ -198,7 +198,7 @@ export function createTestHandlers(storage: TestableStorage): ReadonlyMap<string
 			return invalidParams(`Invalid address: ${decoded}`);
 		}
 		const { bytecode } = decoded;
-		const scriptHash = binToHex(sha256.hash(bytecode));
+		const scriptHash = computeScriptHash(bytecode);
 
 		const COINBASE_REWARD = 5_000_000_000n; // 50 BCH
 		const coinbaseTxids: string[] = [];

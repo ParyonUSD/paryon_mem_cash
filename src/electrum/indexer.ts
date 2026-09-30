@@ -1,7 +1,7 @@
-import { binToHex, cashAddressToLockingBytecode, sha256 } from "@bitauth/libauth";
+import { cashAddressToLockingBytecode } from "@bitauth/libauth";
 import type { Node, NodeConfig, Notification } from "../core/index.js";
 import { createNode } from "../core/index.js";
-import type { ScriptHash } from "../types/index.js";
+import { computeScriptHash, type ScriptHash } from "../types/index.js";
 import { createDispatch } from "./dispatch.js";
 import type {
 	ElectrumCashTestSchema,
@@ -216,7 +216,7 @@ export function createIndexer(config?: IndexerConfig): Indexer {
 			// We register a callback that maps scripthash notifications to [address, status].
 			const decoded = cashAddressToLockingBytecode(address);
 			if (typeof decoded === "string") throw new Error(`Invalid address: ${decoded}`);
-			const scriptHash = binToHex(sha256.hash(decoded.bytecode)) as ScriptHash;
+			const scriptHash = computeScriptHash(decoded.bytecode);
 
 			const wrappedCb = (data: unknown) => {
 				const [, status] = data as [string, string | null];

@@ -1,4 +1,5 @@
-import { binToHex, cashAddressToLockingBytecode, sha256 } from "@bitauth/libauth";
+import { cashAddressToLockingBytecode } from "@bitauth/libauth";
+import { computeScriptHash } from "../types/index.js";
 import * as scripthashHandlers from "./scripthash.js";
 import type { HandlerResult, ProtocolContext } from "./types.js";
 import { invalidParams } from "./types.js";
@@ -7,7 +8,7 @@ import { invalidParams } from "./types.js";
 function addressToScriptHash(address: string): string | null {
 	const result = cashAddressToLockingBytecode(address);
 	if (typeof result === "string") return null;
-	return binToHex(sha256.hash(result.bytecode));
+	return computeScriptHash(result.bytecode);
 }
 
 /**

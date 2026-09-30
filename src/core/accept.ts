@@ -1,4 +1,4 @@
-import { binToHex, sha256 } from "@bitauth/libauth";
+import { binToHex } from "@bitauth/libauth";
 import type {
 	MempoolTx,
 	MempoolTxScriptHashEntry,
@@ -8,7 +8,7 @@ import type {
 	Txid,
 	UtxoEntry,
 } from "../types/index.js";
-import { makeOutpointKey } from "../types/index.js";
+import { computeScriptHash, makeOutpointKey } from "../types/index.js";
 import type { ValidatedTransaction } from "../validation/index.js";
 
 /** Result of accepting a validated transaction into the mempool. */
@@ -30,7 +30,7 @@ export function acceptToMempool(storage: Storage, validatedTx: ValidatedTransact
 	// Compute scripthashes for each output
 	const outputScriptHashes: ScriptHash[] = [];
 	for (const output of transaction.outputs) {
-		const scriptHash = binToHex(sha256.hash(output.lockingBytecode));
+		const scriptHash = computeScriptHash(output.lockingBytecode);
 		outputScriptHashes.push(scriptHash);
 	}
 
@@ -79,7 +79,7 @@ export function acceptToMempool(storage: Storage, validatedTx: ValidatedTransact
 
 		const parentTxid = binToHex(input.outpointTransactionHash);
 		const outpointKey = makeOutpointKey(parentTxid, input.outpointIndex);
-		const inputScriptHash = binToHex(sha256.hash(sourceOutput.lockingBytecode));
+		const inputScriptHash = computeScriptHash(sourceOutput.lockingBytecode);
 
 		const entry = getOrCreateEntry(entriesMap, inputScriptHash);
 		if ((sourceOutput.height ?? 1) > 0) {

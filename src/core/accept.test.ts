@@ -16,10 +16,10 @@ import { acceptToMempool } from "./accept.js";
 // --- Constants ---
 
 const OP_TRUE = Uint8Array.of(0x51);
-const OP_TRUE_SH = binToHex(sha256.hash(OP_TRUE));
+const OP_TRUE_SH = binToHex(sha256.hash(OP_TRUE).reverse());
 
 const OP_DUP = Uint8Array.of(0x76);
-const OP_DUP_SH = binToHex(sha256.hash(OP_DUP));
+const OP_DUP_SH = binToHex(sha256.hash(OP_DUP).reverse());
 
 /** Fake parent txid (64-char hex). */
 const PARENT_TXID = "aa".repeat(32);

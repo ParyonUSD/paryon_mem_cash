@@ -53,7 +53,10 @@ export interface ChainState {
  * Extends libauth's Output with confirmation height and coinbase flag.
  */
 export interface SourceOutput extends Output {
-	/** Confirmation height. 0 = mempool/unconfirmed. Defaults to 1 if omitted. */
+	/**
+	 * Confirmation height. 0 = mempool/unconfirmed, which BIP68 counts as confirmed in the next block.
+	 * Defaults to 1 if omitted.
+	 */
 	readonly height?: number;
 	/** Whether this output was created by a coinbase transaction. */
 	readonly isCoinbase?: boolean;

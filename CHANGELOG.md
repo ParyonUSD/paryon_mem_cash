@@ -87,6 +87,11 @@ transaction service's simulated network needs.
   height, read as 1, so it linked nothing; and a block confirming a transaction removed its
   descendants too.
 
+- **BIP68 counts a mempool coin from the next block.** The verifier evaluates a relative height lock
+  on a source output at height 0 as if the coin confirmed in the next block, as BCHN's
+  `CheckSequenceLocks` does, so any lock above 0 on an unconfirmed parent is refused as
+  `non-BIP68-final (code 64)`. Upstream counted it from height 1 and accepted it.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

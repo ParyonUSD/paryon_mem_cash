@@ -2,7 +2,7 @@
 
 A fork of [mem-cash](https://github.com/mainnet-pat/mem-cash), an in-memory Bitcoin Cash node with a Fulcrum-compatible Electrum server, published in the `@paryonusd` scope as one package. It is the backbone of the transaction service's simulated network (`paryon_transaction_service/test/sim`, PR #67).
 
-Status: planning. The audit of mem-cash 0.0.9 is running; its results fill in [Audit](#audit) and settle the [open decisions](#open-decisions). This document is meant to be updated and then turned into a workflow ([Work plan](#work-plan)).
+Status: phase 1 (import and recover) done, 2026-09-30. The repository carries upstream's history to 0.0.6 and the 0.0.7, 0.0.8 and 0.0.9 changes recovered as one commit each, every one compiling byte for byte to what npm published ([Recovery results](#recovery-results)). Goal 2 is met. Next: phase 2, the restructure.
 
 ## Goals
 
@@ -25,7 +25,7 @@ In order:
 |---|---|
 | Packages | `@mem-cash/types`, `storage`, `validation`, `core`, `electrum`, all pinned exactly at 0.0.9 (devDependencies of the transaction service) |
 | Source on GitHub | up to 0.0.6 (`~/git-clones/mem-cash`, head `9d5ba98`) |
-| Published without source | 0.0.7 (2026-07-19), 0.0.8 (2026-07-22), 0.0.9 (2026-07-23) |
+| Published without source | 0.0.7 (2026-07-19), 0.0.8 (2026-07-22), 0.0.9 (2026-07-23); recovered in this repository, see [Recovery results](#recovery-results) |
 | Install scripts | none; only `prepublishOnly` |
 | Source maps | shipped without `sourcesContent` |
 | Build output | plain `tsc` output, readable |
@@ -41,6 +41,42 @@ The published 0.0.9 is plain `tsc` output with `.d.ts` files alongside, so its T
 4. **Verify:** compile the recovered source with upstream's compiler settings and diff the output against the published 0.0.9 `dist`, per package. The recovery is done when the emitted JavaScript and declarations match, apart from formatting. Run upstream's tests.
 
 This is done before the restructure, so "0.0.9 recovered" and "restructured into one package" are separate, reviewable steps. If a change cannot be recovered with confidence, ask mainnet-pat for the source of that version.
+
+### Recovery results
+
+Done 2026-09-30. The repository starts from upstream's history (fetched from `~/git-clones/mem-cash` master, head `9d5ba98`; remote `upstream` is `https://github.com/mainnet-pat/mem-cash.git`), then:
+
+| Commit | Upstream version | npm gitHead | Change |
+|---|---|---|---|
+| `aa2ac19` | | | this plan |
+| `a2fff03` | 0.0.7 | `9fa7824` | storage and node `snapshot()` / `restore()`, `setNextBlockTimestamp`, monotonic `mine()` timestamp |
+| `d2f55a0` | 0.0.8 | `9d5b36e` | `TxVerifierConfig.consensus` overrides, VM built from libauth's instruction sets when set; validation README example |
+| `da59b6e` | 0.0.9 | `6ee1892` | three more override keys; the six introspection operations rebuilt when `maximumStackItemLength` is overridden |
+
+Each recovered commit names mainnet-pat as co-author and the npm version and gitHead it reproduces; versions are bumped with upstream's `bump.mjs`.
+
+**Verification.** `scripts/verify-recovery.sh <version> <ref>` checks out the ref in a throwaway worktree, builds it from scratch with upstream's toolchain (`yarn install --frozen-lockfile`, `npx tsc -b`, TypeScript 5.9.3, Node 24.21.0), fetches each `@mem-cash/*` tarball of that version with `npm pack`, and compares every file under `dist` (`.js`, `.d.ts` and their `.map`s) plus `package.json` and `README.md` byte for byte:
+
+```
+scripts/verify-recovery.sh 0.0.6 9d5ba98   # upstream's own source, as a baseline
+scripts/verify-recovery.sh 0.0.7 a2fff03
+scripts/verify-recovery.sh 0.0.8 d2f55a0
+scripts/verify-recovery.sh 0.0.9 da59b6e
+```
+
+All four exit 0: types 32, storage 12, validation 20, core 16 and electrum 64 dist files identical, and every `package.json` and `README.md` identical. The only difference is the four `memCash.*` files in the published electrum `dist`, which no source has produced since 0.0.6 and which are the same bytes in all four tarballs. As a negative control, `scripts/verify-recovery.sh 0.0.9 d2f55a0` (the 0.0.8 source against the 0.0.9 tarballs) exits 1, naming `types.d.ts`, `verifier.js`, their maps and every `package.json`.
+
+The match is stricter than "apart from formatting": the source maps are identical too, so each recovered line and column sits where upstream's did. That settled details the JavaScript alone leaves open (a blank line, an import's position, unwrapped long lines).
+
+**Tests.** Upstream's suite, after `npx tsc -b` (the packages import each other through their `dist`, so without a build 15 of 17 files fail to resolve): `npx vitest run` gives 17 files, 319 tests passed at 0.0.6, 0.0.7, 0.0.8 and 0.0.9 alike.
+
+**What the build cannot confirm.** tsc erases type annotations, so their text is reconstructed; the maps fix only their length. In 0.0.8 the facade's parameter type (`ReturnType<typeof createVirtualMachineBch2025>`), the BCH_SPEC cast and the `as never` casts; in 0.0.9 the local `type State = any` (five characters where used, and it must accept both the BCH_SPEC and the common operation types, because the operations table is a union) and the `as (state: State) => State` casts. They compile, have upstream's exact lengths and emit upstream's exact output, but upstream may have spelled them differently.
+
+**Carried over from upstream as published, to revisit in the restructure:**
+- `biome check` passes at 0.0.6 but not at 0.0.9: `node.ts` and `verifier.ts` are not formatted (the source maps show upstream shipped them that way), the deep imports are not in organised order, and `type State = any` trips `noExplicitAny`.
+- `ConsensusOverrides` is not exported from the validation index.
+- None of upstream's tests cover the 0.0.7 to 0.0.9 features (snapshot/restore, `setNextBlockTimestamp`, consensus overrides). The simulator's reorgs rely on snapshot/restore, so it needs tests in the fork.
+- The consensus overrides deep-import `@bitauth/libauth/build/lib/...`. libauth 3.1.0-next.8 has no `exports` map, so these resolve, but they are internal paths a libauth release may move.
 
 ## Package layout
 
@@ -200,7 +236,7 @@ Results (2026-09-30): 24 findings, 23 confirmed by the verifier's own reproducti
 
 Phases for a workflow, each with a review before the next:
 
-1. **Import and recover (goal 2).** Create the repo from the 0.0.6 source, keeping upstream history and attribution. Recover 0.0.7, 0.0.8 and 0.0.9 as one commit each, verified by compiling and diffing against the published builds.
+1. **Import and recover (goal 2).** Done 2026-09-30, see [Recovery results](#recovery-results). Create the repo from the 0.0.6 source, keeping upstream history and attribution. Recover 0.0.7, 0.0.8 and 0.0.9 as one commit each, verified by compiling and diffing against the published builds.
 2. **Restructure (goal 1).** Merge the five packages into `src/` folders, one `package.json`, the two entry points, electrum-session's tooling (pnpm, tsc, vitest, eslint, CI). All upstream tests pass unchanged.
 3. **Fix the shimmed gaps (goal 1).** One commit per gap from the table, each with a test that fails before it. Order by how much shim each fix removes: scripthash order, protocol version, refusal wording, parent links, headers, rollback and reorg.
 4. **Fix the important audit findings (goal 3).** One commit per finding, each with a test that fails before it: finality checked first, Fulcrum's `listunspent` order, mempool heights -1 with the notifications they drive; then the medium ones off our path (time-based BIP68, check order, BCHN reject wording, token filters, P2SH32 in verbose output); low ones fixed where cheap or recorded in the README.

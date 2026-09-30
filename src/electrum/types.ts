@@ -103,13 +103,14 @@ export function internalError(message: string): HandlerResult {
 /** Validate a scripthash parameter (64 hex chars). Returns null on failure. */
 export function validateScriptHash(param: unknown): ScriptHash | null {
 	if (typeof param !== "string" || param.length !== 64 || !isHex(param)) return null;
-	return param;
+	// Hex in either case, as Fulcrum reads it; the node keys everything in lower case
+	return param.toLowerCase();
 }
 
-/** Validate a txid parameter (64 hex chars). Returns null on failure. */
+/** Validate a txid parameter (64 hex chars, either case). Returns it in lower case, or null on failure. */
 export function validateTxid(param: unknown): Txid | null {
 	if (typeof param !== "string" || param.length !== 64 || !isHex(param)) return null;
-	return param;
+	return param.toLowerCase();
 }
 
 /** Validate a non-negative integer parameter. Returns null on failure. */

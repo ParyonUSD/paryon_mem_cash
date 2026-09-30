@@ -4,6 +4,16 @@ Versions 0.0.7 to 0.0.9 were published to npm by mainnet-pat without their sourc
 entries below are written by the @paryonusd/mem-cash fork, which recovered each version's TypeScript
 from the published build; the code is upstream's and does not differ from it.
 
+## 0.0.9
+
+Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).
+
+- `ConsensusOverrides` gains `maximumTokenCommitmentLength`, `operationCostBudgetPerByte` and
+  `hashDigestIterationsPerByteNonstandard`.
+- When `maximumStackItemLength` is overridden, rebuild the operations that capture it when libauth
+  creates the instruction set: `OP_UTXOTOKENCOMMITMENT`, `OP_OUTPUTTOKENCOMMITMENT`,
+  `OP_ACTIVEBYTECODE`, `OP_UTXOBYTECODE`, `OP_INPUTBYTECODE` and `OP_OUTPUTBYTECODE`.
+
 ## 0.0.8
 
 Recovered from the npm build (gitHead `9d5b36e`, published 2026-07-22).

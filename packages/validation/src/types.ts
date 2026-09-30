@@ -12,6 +12,11 @@ export interface ConsensusOverrides {
 	maximumStandardLockingBytecodeLength?: number;
 	maximumTransactionLengthBytes?: number;
 	maximumStandardTransactionSize?: number;
+	maximumTokenCommitmentLength?: number;
+	/** Operation-cost density budget; useful for private test networks with large introspected bytecode. */
+	operationCostBudgetPerByte?: number;
+	/** Non-standard hashing density budget for private test networks. */
+	hashDigestIterationsPerByteNonstandard?: number;
 }
 
 /** Configuration for the transaction verifier. */

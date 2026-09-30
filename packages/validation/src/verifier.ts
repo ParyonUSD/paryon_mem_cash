@@ -1,5 +1,6 @@
 import {
 	binToHex,
+	conditionallyEvaluate,
 	createVirtualMachine,
 	createVirtualMachineBch2023,
 	createVirtualMachineBch2025,
@@ -9,10 +10,14 @@ import {
 	encodeTransactionBch,
 	hashTransactionUiOrder,
 	hexToBin,
+	pushToStackChecked,
+	pushToStackVmNumber,
 	ripemd160,
 	secp256k1,
 	sha1,
 	sha256,
+	useTransactionOutput,
+	useTransactionUtxo,
 	type Output,
 } from "@bitauth/libauth";
 import { ConsensusBch2023 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2023/bch-2023-consensus.js";
@@ -23,6 +28,13 @@ import { createInstructionSetBch2023 } from "@bitauth/libauth/build/lib/vm/instr
 import { createInstructionSetBch2025 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2025/bch-2025-instruction-set.js";
 import { createInstructionSetBch2026 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2026/bch-2026-instruction-set.js";
 import { createInstructionSetBchSpec } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/spec/bch-spec-instruction-set.js";
+import { OpcodesBch2023 } from "@bitauth/libauth/build/lib/vm/instruction-sets/bch/2023/bch-2023-opcodes.js";
+import {
+	createOpActiveBytecode,
+	createOpInputBytecode,
+	createOpOutputBytecode,
+	createOpUtxoBytecode,
+} from "@bitauth/libauth/build/lib/vm/instruction-sets/common/inspection.js";
 import { REJECT_INVALID, REJECT_MALFORMED, REJECT_NONSTANDARD } from "@mem-cash/types";
 import {
 	checkAbsurdFee,
@@ -91,6 +103,36 @@ export function createVmFacade(
 			case "BCH_SPEC": return createInstructionSetBchSpec(standard, { ...crypto, consensus: { ...ConsensusBchSpec, ...consensusOverrides } } as never);
 		}
 	})();
+	const maximumStackItemLength = consensusOverrides.maximumStackItemLength;
+	if (maximumStackItemLength !== undefined) {
+		type State = any;
+		const pushCommitment = (state: State, output: { token?: { nft?: { commitment: Uint8Array } } }) => (
+			output.token?.nft === undefined
+				? pushToStackVmNumber(state, 0n)
+				: pushToStackChecked(state, output.token.nft.commitment, { maximumStackItemLength })
+		);
+		instructionSet.operations[OpcodesBch2023.OP_UTXOTOKENCOMMITMENT] = conditionallyEvaluate(
+			(state: State) => useTransactionUtxo(state, (nextState, [utxo]) => pushCommitment(nextState, utxo)),
+		);
+		instructionSet.operations[OpcodesBch2023.OP_OUTPUTTOKENCOMMITMENT] = conditionallyEvaluate(
+			(state: State) => useTransactionOutput(state, (nextState, [output]) => pushCommitment(nextState, output)),
+		);
+		// Libauth's inspection operations capture ConsensusCommon.maximumStackItemLength when the instruction set
+		// is created, so merging a consensus override is insufficient for bytecode values returned at runtime.
+		// Rebuild each bytecode-pushing operation with the requested limit, matching the token-commitment overrides.
+		instructionSet.operations[OpcodesBch2023.OP_ACTIVEBYTECODE] = conditionallyEvaluate(
+			createOpActiveBytecode({ maximumStackItemLength }) as (state: State) => State,
+		);
+		instructionSet.operations[OpcodesBch2023.OP_UTXOBYTECODE] = conditionallyEvaluate(
+			createOpUtxoBytecode({ maximumStackItemLength }) as (state: State) => State,
+		);
+		instructionSet.operations[OpcodesBch2023.OP_INPUTBYTECODE] = conditionallyEvaluate(
+			createOpInputBytecode({ maximumStackItemLength }) as (state: State) => State,
+		);
+		instructionSet.operations[OpcodesBch2023.OP_OUTPUTBYTECODE] = conditionallyEvaluate(
+			createOpOutputBytecode({ maximumStackItemLength }) as (state: State) => State,
+		);
+	}
 	return facade(createVirtualMachine(instructionSet as never));
 }
 

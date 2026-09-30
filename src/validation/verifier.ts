@@ -52,7 +52,7 @@ import {
 	DEFAULT_MIN_RELAY_FEE_PER_KB,
 	DUST_RELAY_FEE_PER_KB,
 } from "./constants.js";
-import { checkContextual, checkTransactionCommon, type ConsensusLimits } from "./consensus.js";
+import { checkContextual, checkTokens, checkTransactionCommon, type ConsensusLimits } from "./consensus.js";
 import { checkInputsStandard, checkStandardTransaction, type PolicyLimits } from "./policy.js";
 import type {
 	ChainState,
@@ -221,7 +221,7 @@ type PipelineResult = PipelineSuccess | PipelineFailure;
  *  5. Validate sourceOutputs length
  *  6. BIP68 sequence locks check
  *  7. Coinbase maturity, unspendable inputs, input value ranges, fee (CheckTxInputs)
- *  8. AreInputsStandard (policy, standard only), min relay fee, absurd fee
+ *  8. AreInputsStandard (policy, standard only), min relay fee, absurd fee, tokens (CheckTxTokens)
  *  9. VM verify (most expensive — last)
  * 10. Build ValidatedTransaction
  */
@@ -415,6 +415,10 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			if (!absurdCheck.ok) return absurdCheck;
 		}
 
+
+		// 8. CheckTxTokens, after the fees as in BCHN
+		const tokenCheck = checkTokens(decoded, sourceOutputs, limits.maximumTokenCommitmentLength);
+		if (!tokenCheck.ok) return tokenCheck;
 
 		return { ok: true, decoded, txid, encodedBytes, fee };
 	}

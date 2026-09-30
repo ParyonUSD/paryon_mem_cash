@@ -197,6 +197,12 @@ transaction service's simulated network needs.
   once the inputs were found (so `Missing inputs` first), and left the rest to libauth's VM, refused
   last as `mandatory-script-verify-flag-failed (...) (code 16)`.
 
+- **Token refusals in BCHN's words.** The verifier runs BCHN's `CheckTxTokens` after the fees, output
+  by output, answering `bad-txns-token-in-belowout`, `-invalid-category`, `-nft-ex-nihilo`,
+  `-dupe-genesis`, `-commitment-oversized` or `-amount-overflow` (code 16), with BCHN's debug message
+  quoting the output's `token::OutputData` where BCHN gives one. Upstream left tokens to libauth's VM:
+  `mandatory-script-verify-flag-failed (Transaction violates token validation: ...)`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

@@ -449,10 +449,15 @@ export function createNode(config?: NodeConfig): Node {
 		storage.restore(snap);
 	}
 
-	/** The mempool transactions a block holds: all of them, or the listed ones with their parents. */
+	/**
+	 * The mempool transactions a block holds (all of them, or the listed ones with their parents) in CTOR
+	 * order: by txid, as every BCH block since November 2018, which puts a child ahead of a parent whose
+	 * txid sorts higher. Upstream kept mempool order, parents first, which the history, the status hash
+	 * and listunspent's block position then followed where no real chain would.
+	 */
 	function blockTxids(include: readonly string[] | undefined): string[] {
 		const pool = storage.getMempoolTxids();
-		if (include === undefined) return pool;
+		if (include === undefined) return [...pool].sort();
 		const wanted = new Set(include);
 		for (const txid of wanted) {
 			const entry = storage.getMempoolTx(txid);
@@ -460,8 +465,7 @@ export function createNode(config?: NodeConfig): Node {
 			const missing = [...entry.parents].find((parent) => !wanted.has(parent));
 			if (missing) throw new Error(`${txid} cannot be mined without its unconfirmed parent ${missing}`);
 		}
-		// Mempool order puts parents before children, as a block must
-		return pool.filter((txid) => wanted.has(txid));
+		return pool.filter((txid) => wanted.has(txid)).sort();
 	}
 
 	function mine(options?: number | MineOptions): MineResult {

@@ -38,13 +38,14 @@ describe("listunspent order", () => {
 		]);
 	});
 
-	it("lists the coins of one block by their transaction's position in it, not by txid", async () => {
+	it("lists the coins of one mined block by position, which CTOR makes txid order, not mempool order", async () => {
 		const node = createTestIndexer(200);
 		const a = buildTx([addCoin(node, "aa")], [99_000n]);
 		const b = buildTx([addCoin(node, "bb")], [99_000n]);
-		const [first, second] = a.txid > b.txid ? [a, b] : [b, a];
-		for (const tx of [first, second]) expect(node.submitTransaction(tx.hex).success).toBe(true);
+		// The mempool receives the higher txid first; the block holds the lower one first
+		const [lower, higher] = a.txid < b.txid ? [a, b] : [b, a];
+		for (const tx of [higher, lower]) expect(node.submitTransaction(tx.hex).success).toBe(true);
 		node.mine();
-		expect(await listUnspent(node)).toEqual([`${first.txid}:0`, `${second.txid}:0`]);
+		expect(await listUnspent(node)).toEqual([`${lower.txid}:0`, `${higher.txid}:0`]);
 	});
 });

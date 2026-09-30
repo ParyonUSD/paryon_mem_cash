@@ -138,7 +138,7 @@ transaction service's simulated network needs.
 
 - **`mine({ include })` confirms chosen transactions.** `mine()` takes `{ timestamp, include }` (a
   number is still the timestamp): with `include`, the block holds only the listed mempool
-  transactions, in mempool order, and the rest stay in the mempool, children of a confirmed parent
+  transactions, in CTOR order (by txid), and the rest stay in the mempool, children of a confirmed parent
   relinked. A listed transaction whose unconfirmed parent is not listed, or one not in the mempool,
   throws. Upstream confirmed the whole mempool and cleared it. New type `MineOptions`.
 
@@ -230,10 +230,13 @@ transaction service's simulated network needs.
   Fulcrum's `Storage::getBalance`. Upstream counted every mempool output, so a chain of mempool
   transactions added up its intermediate outputs.
 
-- **History within a block in block order.** Confirmed history lists a block's transactions in their
-  order in the block, as Fulcrum's txNum order, and the status hash follows it. Upstream sorted them by
-  txid, so a parent and child confirmed together could come out child first, with a status hash other
-  than Fulcrum's.
+- **Mined blocks in CTOR order; history in block order.** `mine()` puts a block's transactions in txid
+  order, as every BCH block since the November 2018 upgrade (CTOR), so a child whose txid sorts lower
+  comes ahead of its parent. Confirmed history lists a block's transactions in their order in the block,
+  as Fulcrum's txNum order, and the status hash and `listunspent`'s block position follow it; for a block
+  from `mine()` that is txid order, as a real Fulcrum answers. Upstream mined in mempool order, parents
+  first, and sorted history within a block by txid: its history matched Fulcrum's for its own blocks
+  only by the sort, and `listunspent` and the merkle root followed an order no BCH block has.
 
 - **A block's outputs before its inputs.** `applyBlock` adds every output of a block before it spends
   any input, as BCHN's `ConnectBlock`, so a block in CTOR order (by txid) with a child ahead of its

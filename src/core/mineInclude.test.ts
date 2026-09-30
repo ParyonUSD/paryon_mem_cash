@@ -24,10 +24,10 @@ describe("mine({ include })", () => {
 		expect(node.getMempoolHistory(OP_TRUE_SCRIPTHASH).every((entry) => entry.height === 0)).toBe(true);
 	});
 
-	it("puts the listed transactions in mempool order, parents first", () => {
+	it("puts the listed transactions in CTOR order, by txid", () => {
 		const { node, a, aChild } = pool();
 		node.mine({ include: [aChild.txid, a.txid] });
-		expect(node.getTxidsAtHeight(201)).toEqual([a.txid, aChild.txid]);
+		expect(node.getTxidsAtHeight(201)).toEqual([a.txid, aChild.txid].sort());
 	});
 
 	it("refuses a transaction without its unconfirmed parent, or one not in the mempool", () => {
@@ -48,7 +48,7 @@ describe("mine({ include })", () => {
 	it("still confirms the whole mempool without a list", () => {
 		const { node, a, b, aChild } = pool();
 		node.mine(1_700_009_999);
-		expect(node.getTxidsAtHeight(201)).toEqual([a.txid, b.txid, aChild.txid]);
+		expect(node.getTxidsAtHeight(201)).toEqual([a.txid, b.txid, aChild.txid].sort());
 		expect(node.getMempoolTxids()).toEqual([]);
 		expect(node.getRawTx(aChild.txid)).toBe(aChild.hex);
 	});

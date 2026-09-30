@@ -28,7 +28,7 @@ const result = node.submitTransaction(rawHex);
 const debug = node.debugTransaction(rawHex);
 // { success: true, txid, fee, size, inputResults: [...] }
 
-// Blocks: the whole mempool, or chosen transactions, under a real 80-byte header
+// Blocks: the whole mempool, or chosen transactions, in CTOR order (by txid) under a real 80-byte header
 node.mine();
 node.mine({ include: [txid] });
 

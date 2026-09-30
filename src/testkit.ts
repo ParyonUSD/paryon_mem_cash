@@ -7,15 +7,25 @@ import {
 	encodeTransactionBch,
 	hashTransactionUiOrder,
 	hexToBin,
+	type Output,
+	ripemd160,
+	sha256,
 } from "@bitauth/libauth";
 import { createIndexer, type Indexer } from "./electrum/index.js";
 import { createBlockHeader } from "./core/index.js";
 import { computeScriptHash, makeOutpointKey, type ProcessedBlock } from "./types/index.js";
 import { createTxVerifier } from "./validation/index.js";
 
+const hash160 = (bytes: Uint8Array) => ripemd160.hash(sha256.hash(bytes));
+
 /** OP_1: anyone can spend it, so a test needs no keys. */
 export const OP_TRUE = Uint8Array.of(0x51);
 export const OP_TRUE_SCRIPTHASH = computeScriptHash(OP_TRUE);
+
+/** P2SH20 of OP_TRUE: standard, and spent by pushing the redeem script (`P2SH_OP_TRUE_UNLOCKING`). */
+export const P2SH_OP_TRUE = Uint8Array.of(0xa9, 0x14, ...hash160(OP_TRUE), 0x87);
+export const P2SH_OP_TRUE_UNLOCKING = Uint8Array.of(0x01, 0x51);
+export const P2SH_OP_TRUE_SCRIPTHASH = computeScriptHash(P2SH_OP_TRUE);
 
 export const SEQUENCE_FINAL = 0xffffffff;
 
@@ -23,7 +33,12 @@ export interface TestInput {
 	readonly txid: string;
 	readonly vout: number;
 	readonly sequence?: number;
+	/** Empty by default, which spends OP_TRUE. */
+	readonly unlocking?: Uint8Array;
 }
+
+/** An output: a value paid to OP_TRUE, or one in full. */
+export type TestOutput = bigint | Output;
 
 export interface TestTx {
 	readonly txid: string;
@@ -31,12 +46,12 @@ export interface TestTx {
 }
 
 /**
- * A transaction spending `inputs` into OP_TRUE outputs of the given values. One too small for the
- * 65-byte minimum gets an empty OP_RETURN output after them.
+ * A transaction spending `inputs` into `outputs`, each a value paid to OP_TRUE or an output in full.
+ * One too small for the 65-byte minimum gets an empty OP_RETURN output after them.
  */
 export function buildTx(
 	inputs: readonly TestInput[],
-	outputs: readonly bigint[],
+	outputs: readonly TestOutput[],
 	{ locktime = 0, version = 2 }: { locktime?: number; version?: number } = {},
 ): TestTx {
 	const encode = (padded: boolean) => encodeTransactionBch({
@@ -45,11 +60,12 @@ export function buildTx(
 		inputs: inputs.map((input) => ({
 			outpointTransactionHash: hexToBin(input.txid),
 			outpointIndex: input.vout,
-			unlockingBytecode: new Uint8Array(0),
+			unlockingBytecode: input.unlocking ?? new Uint8Array(0),
 			sequenceNumber: input.sequence ?? SEQUENCE_FINAL,
 		})),
 		outputs: [
-			...outputs.map((valueSatoshis) => ({ lockingBytecode: OP_TRUE, valueSatoshis })),
+			...outputs.map((output) =>
+				typeof output === "bigint" ? { lockingBytecode: OP_TRUE, valueSatoshis: output } : output),
 			...(padded ? [{ lockingBytecode: Uint8Array.of(0x6a), valueSatoshis: 0n }] : []),
 		],
 	});

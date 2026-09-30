@@ -155,6 +155,13 @@ transaction service's simulated network needs.
   (Fulcrum's `UnspentItem::operator<`). A coin seeded with the test helpers, which sits in no block,
   comes after a block's own at its height. Upstream listed coins in the order they arrived.
 
+- **`get_first_use` from the mempool as Fulcrum.** With no confirmed history, it answers the first
+  mempool transaction that pays the scripthash (skipping one that only spends from it), at height -1
+  when that transaction has an unconfirmed parent. Upstream answered the first mempool entry of any
+  kind at height 0. The heights -1 of `get_history`, `get_mempool` and the status hash, and the
+  notification a subscriber gets when a block confirms the parent, come from the parent links above;
+  `mempoolHeights.test.ts` holds them all.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

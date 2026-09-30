@@ -186,13 +186,16 @@ export function getFirstUse(ctx: ProtocolContext, params: unknown[]): HandlerRes
 		});
 	}
 
-	// Fall back to mempool
-	const mempool = ctx.node.getMempoolHistory(scriptHash);
-	const firstMempool = mempool[0];
+	// Then the mempool, as Fulcrum's getFirstUse: the first transaction paying the scripthash (one only
+	// spending from it does not count), at -1 if it has an unconfirmed parent. Upstream took the first
+	// entry of any kind, at height 0.
+	const firstMempool = ctx.node
+		.getMempoolHistory(scriptHash)
+		.find((entry) => (ctx.node.getMempoolTx(entry.txHash)?.entries.get(scriptHash)?.outputs.length ?? 0) > 0);
 	if (firstMempool) {
 		return ok({
 			block_hash: "0".repeat(64),
-			height: 0,
+			height: firstMempool.height,
 			tx_hash: firstMempool.txHash,
 		});
 	}

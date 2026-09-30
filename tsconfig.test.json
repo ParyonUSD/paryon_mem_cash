@@ -1,0 +1,12 @@
+// Type-checks the tests, which the build leaves out. Upstream never type-checked its tests (each
+// package's tsconfig excluded them and vitest strips types), so a few index into arrays without a
+// guard; noUncheckedIndexedAccess is relaxed here rather than rewriting upstream's tests.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["src"],
+  "exclude": []
+}

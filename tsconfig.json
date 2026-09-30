@@ -1,10 +1,21 @@
 {
-	"files": [],
-	"references": [
-		{ "path": "packages/types" },
-		{ "path": "packages/storage" },
-		{ "path": "packages/validation" },
-		{ "path": "packages/core" },
-		{ "path": "packages/electrum" }
-	]
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "declaration": true
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

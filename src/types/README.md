@@ -1,6 +1,8 @@
-# @mem-cash/types
+# src/types
 
-Shared primitives, data types, and interfaces for the mem-cash monorepo.
+Formerly `@mem-cash/types`; exported from `@paryonusd/mem-cash`.
+
+Primitives, data types, and interfaces shared by the other folders.
 
 ## Contents
 

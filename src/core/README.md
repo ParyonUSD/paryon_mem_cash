@@ -1,4 +1,6 @@
-# @mem-cash/core
+# src/core
+
+Formerly `@mem-cash/core`; exported from `@paryonusd/mem-cash`.
 
 Node engine, subscription manager, and mempool acceptance for mem-cash.
 
@@ -7,8 +9,8 @@ Node engine, subscription manager, and mempool acceptance for mem-cash.
 `createNode()` wires together in-memory storage with an optional transaction verifier:
 
 ```typescript
-import { createNode } from "@mem-cash/core";
-import { createTxVerifier } from "@mem-cash/validation";
+import { createNode } from "@paryonusd/mem-cash";
+import { createTxVerifier } from "@paryonusd/mem-cash/validation";
 
 const verifier = await createTxVerifier({ standard: false });
 const node = createNode({ verifier });

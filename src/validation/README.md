@@ -1,11 +1,13 @@
-# @mem-cash/validation
+# src/validation
+
+Formerly `@mem-cash/validation`; exported from `@paryonusd/mem-cash/validation` on its own, and from `@paryonusd/mem-cash`.
 
 Stateless transaction evaluator for Bitcoin Cash. Validates raw transaction hex against consensus rules, policy checks, and libauth VM script verification.
 
 ## Usage
 
 ```typescript
-import { createTxVerifier } from "@mem-cash/validation";
+import { createTxVerifier } from "@paryonusd/mem-cash/validation";
 
 const verifier = await createTxVerifier({
   vmVersion: "BCH_2025_05",

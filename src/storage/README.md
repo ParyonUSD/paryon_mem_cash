@@ -1,11 +1,13 @@
-# @mem-cash/storage
+# src/storage
 
-In-memory implementation of the `Storage` interface from `@mem-cash/types`.
+Formerly `@mem-cash/storage`; exported from `@paryonusd/mem-cash`.
+
+In-memory implementation of the `Storage` interface from `src/types`.
 
 ## Usage
 
 ```typescript
-import { createMemoryStorage } from "@mem-cash/storage";
+import { createMemoryStorage } from "@paryonusd/mem-cash";
 
 const storage = createMemoryStorage();
 

@@ -1,4 +1,6 @@
-# @mem-cash/electrum
+# src/electrum
+
+Formerly `@mem-cash/electrum`; exported from `@paryonusd/mem-cash`.
 
 Electrum Cash protocol handlers, dispatch, and the `Indexer` facade. Modelled after
 [Fulcrum](https://github.com/cculianu/Fulcrum), the production C++ Electrum Cash indexer -- error messages, history sort order, status hash computation, and
@@ -27,7 +29,7 @@ All 53 Fulcrum client RPC methods are implemented:
 dispatch into a single instance. All interaction goes through `request()`.
 
 ```typescript
-import { createIndexer } from "@mem-cash/electrum";
+import { createIndexer } from "@paryonusd/mem-cash";
 import { binToHex, sha256 } from "@bitauth/libauth";
 
 const indexer = createIndexer({ standard: false });

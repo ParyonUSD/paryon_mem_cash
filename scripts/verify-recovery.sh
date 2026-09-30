@@ -13,6 +13,10 @@
 # Exits non-zero when any emitted .js, .d.ts or .map, or any package.json or README, differs. The
 # published electrum package carries memCash.* files that no source has produced since 0.0.6;
 # they are listed as published-only and do not fail the check.
+#
+# It works on refs from before the restructure into one package (bf21c89 and earlier), which still
+# have the five packages and upstream's yarn toolchain; later commits no longer compile to the
+# @mem-cash/* tarballs by design.
 set -euo pipefail
 
 version=${1:?usage: verify-recovery.sh <npm version> [<git ref>]}

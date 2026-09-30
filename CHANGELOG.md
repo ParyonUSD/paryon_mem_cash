@@ -171,6 +171,16 @@ transaction service's simulated network needs.
   in-belowout, and left duplicate inputs to libauth, which answered
   `mandatory-script-verify-flag-failed (... spend the same outpoint in multiple inputs ...)`.
 
+- **Standardness in BCHN's words and place.** With `standard` on, the verifier runs BCHN's
+  `IsStandardTx` before finality (`version`, `tx-size`, `scriptsig-size`, `scriptsig-not-pushonly`,
+  `scriptpubkey`, `dust`, `oversize-op-return`) and `AreInputsStandard` after `CheckTxInputs`
+  (`bad-txns-nonstandard-inputs`), each refused with the bare reason and code 64. The limits are
+  libauth's consensus table for the VM version with any `consensus` overrides, as the VM reads them.
+  Upstream left all but dust to libauth's standard VM, which refused inside script verification as
+  `non-mandatory-script-verify-flag (Unable to verify standard transaction: ...)`, or for a version 3
+  or a non-push unlocking script as `mandatory-script-verify-flag-failed (...) (code 16)`, after the
+  fees and finality.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

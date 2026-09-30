@@ -40,7 +40,6 @@ import {
 	checkAbsurdFee,
 	checkCoinbaseMaturity,
 	checkDuplicateInputs,
-	checkDustOutputs,
 	checkInputValueRanges,
 	checkLocktimeFinality,
 	checkMinRelayFee,
@@ -54,6 +53,7 @@ import {
 	DUST_RELAY_FEE_PER_KB,
 	MAX_MONEY,
 } from "./constants.js";
+import { checkInputsStandard, checkStandardTransaction, type PolicyLimits } from "./policy.js";
 import type {
 	ChainState,
 	ConsensusOverrides,
@@ -68,6 +68,14 @@ import type {
 	VerifyResult,
 	VmVersion,
 } from "./types.js";
+
+/** libauth's consensus limits by VM version, which its VM and the policy checks read. */
+const CONSENSUS_TABLES: Record<VmVersion, PolicyLimits> = {
+	BCH_2023_05: ConsensusBch2023,
+	BCH_2025_05: ConsensusBch2025,
+	BCH_2026_05: ConsensusBch2026,
+	BCH_SPEC: ConsensusBchSpec,
+};
 
 /** VM abstraction to unify the different version-specific types. */
 export interface VmFacade {
@@ -205,15 +213,14 @@ type PipelineResult = PipelineSuccess | PipelineFailure;
  * Pipeline order (matching BCHN AcceptToMemoryPoolWorker):
  *  1. Decode tx hex
  *  2. Null prevout and duplicate input checks (CheckRegularTransaction)
- *  3. Dust output check (IsStandardTx; policy, standard only)
+ *  3. IsStandardTx (policy, standard only), dust among it
  *  4. Locktime finality check (1-4 are checkBeforeInputs: they need no source outputs)
  *  5. Validate sourceOutputs length
  *  6. BIP68 sequence locks check
  *  7. Coinbase maturity, unspendable inputs, input value ranges, fee (CheckTxInputs)
- *  8. Min relay fee check (policy, before VM)
- *  9. Absurd fee guard (policy, before VM)
- * 10. VM verify (most expensive — last)
- * 11. Build ValidatedTransaction
+ *  8. AreInputsStandard (policy, standard only), min relay fee, absurd fee
+ *  9. VM verify (most expensive — last)
+ * 10. Build ValidatedTransaction
  */
 export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 	const version = config?.vmVersion ?? "BCH_2025_05";
@@ -233,6 +240,8 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			throw new Error(`consensus.${name} must be a positive safe integer`);
 		}
 	}
+	// The limits the policy checks read, as libauth's VM reads them: its table for the version, overridden
+	const limits: PolicyLimits = { ...CONSENSUS_TABLES[version], ...config?.consensus };
 	const vm = createVmFacade(version, standard, config?.consensus);
 	// Consensus-only VM for two-pass script verification (BCHN CheckInputs pattern).
 	// When standard=true, a script failure is re-checked with consensus-only flags to
@@ -272,11 +281,11 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		const duplicateCheck = checkDuplicateInputs(prevoutInputs);
 		if (!duplicateCheck.ok) return duplicateCheck;
 
-		// 3. Dust output check (policy, matches BCHN IsStandardTx). Uses the fixed dust relay fee. BCHN
-		// makes it before finality, fees and inputs, so it wins over all of them.
+		// 3. IsStandardTx (policy, standard only), dust among it with the fixed dust relay fee. BCHN makes
+		// it before finality, fees and inputs, so it wins over all of them.
 		if (standard) {
-			const dustCheck = checkDustOutputs(decoded.outputs, dustRelayFeePerKb);
-			if (!dustCheck.ok) return dustCheck;
+			const standardCheck = checkStandardTransaction(decoded, rawBytes.length, limits, dustRelayFeePerKb);
+			if (!standardCheck.ok) return standardCheck;
 		}
 
 		// 4. Locktime finality check
@@ -293,7 +302,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		return { ok: true, decoded };
 	}
 
-	/** Run pre-VM pipeline steps 1-9. Returns validated data or error. */
+	/** Run pre-VM pipeline steps 1-8. Returns validated data or error. */
 	function preVmPipeline(
 		rawHex: string,
 		sourceOutputs: readonly SourceOutput[],
@@ -391,7 +400,13 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		}
 
 
-		// 8-9. Fee policy checks (min-relay + absurd-fee). Skipped for unfunded txs.
+		// 8. AreInputsStandard (policy, standard only)
+		if (standard) {
+			const inputsCheck = checkInputsStandard(sourceOutputs, limits);
+			if (!inputsCheck.ok) return inputsCheck;
+		}
+
+		// 8. Fee policy checks (min-relay + absurd-fee). Skipped for unfunded txs.
 		if (!skipFeePolicy) {
 			const size = encodedBytes.length;
 			const feeCheck = checkMinRelayFee(fee, size, minRelayFeePerKb);
@@ -458,7 +473,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 
 		const { decoded, txid, encodedBytes, fee } = pipeline;
 
-		// 10. VM verify (most expensive — last)
+		// 9. VM verify (most expensive — last)
 		const vmOutputs = toVmOutputs(sourceOutputs);
 		const verifyResult = vm.verify({ sourceOutputs: vmOutputs, transaction: decoded });
 		if (verifyResult !== true) {
@@ -470,7 +485,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			return { success: false, code, error };
 		}
 
-		// 11. Build ValidatedTransaction
+		// 10. Build ValidatedTransaction
 		const size = encodedBytes.length;
 		const validatedTx: ValidatedTransaction = {
 			txid,
@@ -495,7 +510,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		const { decoded, txid, encodedBytes, fee } = pipeline;
 		const vmOutputs = toVmOutputs(sourceOutputs);
 
-		// 10. Debug each input individually
+		// 9. Debug each input individually
 		const inputResults: DebugInputResult[] = [];
 		for (let i = 0; i < decoded.inputs.length; i++) {
 			try {
@@ -546,7 +561,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			return { success: false, code, error, inputResults };
 		}
 
-		// 11. Build ValidatedTransaction
+		// 10. Build ValidatedTransaction
 		const size = encodedBytes.length;
 		const validatedTx: ValidatedTransaction = {
 			txid,

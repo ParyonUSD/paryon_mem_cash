@@ -16,8 +16,17 @@ import type {
 import { makeOutpointKey } from "@mem-cash/types";
 import { createTestHelpers, type TestHelpers } from "./testHelpers.js";
 
-/** Storage extended with direct test manipulation. */
-export type TestableStorage = Storage & { readonly _test: TestHelpers };
+/** An opaque, deep-cloned snapshot of the full storage state (chain + mempool). */
+export type StorageSnapshot = StorageInternals;
+
+/** Storage extended with direct test manipulation and snapshot/restore. */
+export type TestableStorage = Storage & {
+	readonly _test: TestHelpers;
+	/** Capture a deep-cloned snapshot of the entire storage state. */
+	snapshot(): StorageSnapshot;
+	/** Restore the storage to a previously captured snapshot (repeatable). */
+	restore(snap: StorageSnapshot): void;
+};
 
 /** Internal state shared between storage and test helpers. */
 export interface StorageInternals {
@@ -590,6 +599,31 @@ export function createMemoryStorage(): TestableStorage {
 	}
 
 	// --- Build test helpers ---
+	// --- Snapshot / restore ---
+	// structuredClone deep-copies Maps, Sets, typed arrays and BigInt while preserving intra-snapshot
+	// reference identity (e.g. a UtxoEntry shared between `utxos` and `undoInfos`). Restore repopulates the
+	// live internals in place so the closures above keep reading the same `s` object.
+	function snapshot(): StorageSnapshot {
+		return structuredClone(s);
+	}
+	function restore(snap: StorageSnapshot): void {
+		const c = structuredClone(snap);
+		s.headers = c.headers;
+		s.headersByHash = c.headersByHash;
+		s.utxos = c.utxos;
+		s.utxosByScriptHash = c.utxosByScriptHash;
+		s.history = c.history;
+		s.txIndex = c.txIndex;
+		s.rawTxs = c.rawTxs;
+		s.undoInfos = c.undoInfos;
+		s.blockTxids = c.blockTxids;
+		s.mempoolTxs = c.mempoolTxs;
+		s.mempoolUtxos = c.mempoolUtxos;
+		s.mempoolUtxosByScriptHash = c.mempoolUtxosByScriptHash;
+		s.mempoolSpends = c.mempoolSpends;
+		s.mempoolHistory = c.mempoolHistory;
+	}
+
 	const testHelpers = createTestHelpers(s, { removeMempoolTx, clearMempool });
 
 	return {
@@ -617,6 +651,9 @@ export function createMemoryStorage(): TestableStorage {
 		clearMempool,
 		addMempoolUtxo,
 		storeRawTx,
+		// Snapshot / restore
+		snapshot,
+		restore,
 		// Test
 		_test: testHelpers,
 	};

@@ -1,5 +1,18 @@
 # Changelog
 
+Versions 0.0.7 to 0.0.9 were published to npm by mainnet-pat without their source on GitHub. Their
+entries below are written by the @paryonusd/mem-cash fork, which recovered each version's TypeScript
+from the published build; the code is upstream's and does not differ from it.
+
+## 0.0.7
+
+Recovered from the npm build (gitHead `9fa7824`, published 2026-07-19).
+
+- Add `snapshot()` / `restore()` to the memory storage and the Node: a `structuredClone` of the
+  whole chain and mempool state, restorable any number of times. Export the `StorageSnapshot` type.
+- Add `Node.setNextBlockTimestamp` - sets the timestamp the next `mine()` uses.
+- `mine()` without a timestamp never goes backwards from the tip's timestamp.
+
 ## 0.0.6
 
 - Export `getDustThreshold` - reusable token-aware dust calculator.

@@ -1,6 +1,7 @@
 export {
 	createMemoryStorage,
 	type StorageInternals,
+	type StorageSnapshot,
 	type TestableStorage,
 } from "./memoryStorage.js";
 export type {

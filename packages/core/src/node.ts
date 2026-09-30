@@ -7,7 +7,7 @@ import {
 	sha256,
 	utf8ToBin,
 } from "@bitauth/libauth";
-import type { TestableStorage } from "@mem-cash/storage";
+import type { StorageSnapshot, TestableStorage } from "@mem-cash/storage";
 import { createMemoryStorage } from "@mem-cash/storage";
 import type {
 	BlockHeader,
@@ -104,11 +104,20 @@ export interface Node extends StorageReader {
 	/** Set chain tip with 11 headers at the given timestamp (sets both height and MTP). */
 	readonly setChainTip: (height: number, timestamp: number) => void;
 
+	/** Set the timestamp of the NEXT mined block without mining it (test helper). Consumed by the next mine(). */
+	readonly setNextBlockTimestamp: (timestamp: number) => void;
+
 	/** Add a UTXO to the confirmed set. */
 	readonly addUtxo: (params: AddUtxoParams) => void;
 
 	/** Reset all storage (UTXOs, transactions, mempool, history, headers) to empty. */
 	readonly reset: () => void;
+
+	/** Capture a deep-cloned snapshot of the entire node state (chain + mempool). */
+	readonly snapshot: () => StorageSnapshot;
+
+	/** Restore the node to a previously captured snapshot (repeatable). */
+	readonly restore: (snap: StorageSnapshot) => void;
 
 	/** Set or replace the transaction verifier. */
 	readonly setVerifier: (verifier: TxVerifier) => void;
@@ -133,6 +142,8 @@ export function createNode(config?: NodeConfig): Node {
 	const storage = createMemoryStorage();
 
 	let verifier = config?.verifier;
+	// Pending timestamp for the next mined block (test helper: setNextBlockTimestamp). Consumed once by mine().
+	let pendingTimestamp: number | undefined;
 	const subscriptions = createSubscriptionManager(storage);
 
 	function deriveChainState(): ChainState | null {
@@ -302,10 +313,25 @@ export function createNode(config?: NodeConfig): Node {
 		storage._test.reset();
 	}
 
+	function setNextBlockTimestamp(timestamp: number): void {
+		pendingTimestamp = timestamp;
+	}
+
+	function snapshot(): StorageSnapshot {
+		return storage.snapshot();
+	}
+
+	function restore(snap: StorageSnapshot): void {
+		storage.restore(snap);
+	}
+
 	function mine(timestamp?: number): MineResult {
 		const tip = storage.getTip();
 		const newHeight = (tip?.height ?? 0) + 1;
-		const ts = timestamp ?? 1700000000 + newHeight;
+		// Precedence: explicit arg > pending (setNextBlockTimestamp) > monotonic default. The default never goes
+		// backwards from the current tip, so time-travelled chains stay consistent across auto-mines.
+		const ts = timestamp ?? pendingTimestamp ?? Math.max(1700000000 + newHeight, (tip?.timestamp ?? 0) + 1);
+		pendingTimestamp = undefined;
 
 		const txids = storage.getMempoolTxids();
 		const processedTxs: ProcessedBlockTx[] = [];
@@ -396,8 +422,11 @@ export function createNode(config?: NodeConfig): Node {
 		debugTransaction,
 		mine,
 		setChainTip,
+		setNextBlockTimestamp,
 		addUtxo,
 		reset,
+		snapshot,
+		restore,
 		setVerifier,
 		storage,
 		subscriptions,

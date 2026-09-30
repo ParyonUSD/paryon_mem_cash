@@ -38,4 +38,20 @@ describe("blockchain.transaction.get", () => {
 		expect(await node.request("blockchain.transaction.get", [parent.txid])).toBe(parent.hex);
 		expect(await node.request("blockchain.transaction.get", [child.txid])).toBe(child.hex);
 	});
+
+	it("gives a verbose mempool transaction no block fields, as getrawtransaction does", async () => {
+		const { node, parent } = withChain();
+		const pending = (await node.request("blockchain.transaction.get", [parent.txid, true])) as object;
+		for (const field of ["confirmations", "blockhash", "blocktime", "time"]) expect(pending).not.toHaveProperty(field);
+
+		node.mine();
+		const confirmed = await node.request("blockchain.transaction.get", [parent.txid, true]);
+		const tip = node.getTip();
+		expect(confirmed).toMatchObject({
+			confirmations: 1,
+			blockhash: tip?.hash,
+			blocktime: tip?.timestamp,
+			time: tip?.timestamp,
+		});
+	});
 });

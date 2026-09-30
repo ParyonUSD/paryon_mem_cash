@@ -97,6 +97,11 @@ transaction service's simulated network needs.
   `blockchain.transaction.get` answers `No such mempool or blockchain transaction`, as Fulcrum over
   BCHN does. Upstream kept every raw transaction it had ever accepted.
 
+- **A verbose mempool transaction has no block fields.** `blockchain.transaction.get` with `verbose`
+  leaves out `blockhash`, `blocktime`, `time` and `confirmations` for a transaction not in a block,
+  as `getrawtransaction` does; the schema marks them optional. Upstream gave an empty block hash and
+  zeros.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

@@ -140,7 +140,7 @@ export function get(ctx: ProtocolContext, params: unknown[]): HandlerResult {
 		return item;
 	});
 
-	return ok({
+	const result = {
 		txid,
 		hash: txid,
 		hex: rawHex,
@@ -149,9 +149,15 @@ export function get(ctx: ProtocolContext, params: unknown[]): HandlerResult {
 		locktime: decoded.locktime,
 		vin,
 		vout,
-		blockhash: blockHeader?.hash ?? "",
-		blocktime: blockHeader?.timestamp ?? 0,
-		time: blockHeader?.timestamp ?? 0,
+	};
+	// getrawtransaction gives the block fields only for a transaction in a block; upstream gave a mempool
+	// transaction an empty block hash and zero times
+	if (!blockHeader) return ok(result);
+	return ok({
+		...result,
+		blockhash: blockHeader.hash,
+		blocktime: blockHeader.timestamp,
+		time: blockHeader.timestamp,
 		confirmations,
 	});
 }

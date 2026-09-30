@@ -249,14 +249,15 @@ export type ElectrumCashSchema_1_5_3 = {
 				| null
 				| string
 				| {
-						blockhash: string;
-						blocktime: number;
-						confirmations: number;
+						// The block fields only for a transaction in a block
+						blockhash?: string;
+						blocktime?: number;
+						confirmations?: number;
 						hash: string;
 						hex: string;
 						locktime: number;
 						size: number;
-						time: number;
+						time?: number;
 						txid: string;
 						version: number;
 						vin: Array<{

@@ -51,8 +51,8 @@ import {
 	DEFAULT_MAX_FEE,
 	DEFAULT_MIN_RELAY_FEE_PER_KB,
 	DUST_RELAY_FEE_PER_KB,
-	MAX_MONEY,
 } from "./constants.js";
+import { checkContextual, checkTransactionCommon, type ConsensusLimits } from "./consensus.js";
 import { checkInputsStandard, checkStandardTransaction, type PolicyLimits } from "./policy.js";
 import type {
 	ChainState,
@@ -70,7 +70,8 @@ import type {
 } from "./types.js";
 
 /** libauth's consensus limits by VM version, which its VM and the policy checks read. */
-const CONSENSUS_TABLES: Record<VmVersion, PolicyLimits> = {
+type Limits = ConsensusLimits & PolicyLimits;
+const CONSENSUS_TABLES: Record<VmVersion, Limits> = {
 	BCH_2023_05: ConsensusBch2023,
 	BCH_2025_05: ConsensusBch2025,
 	BCH_2026_05: ConsensusBch2026,
@@ -212,9 +213,11 @@ type PipelineResult = PipelineSuccess | PipelineFailure;
  *
  * Pipeline order (matching BCHN AcceptToMemoryPoolWorker):
  *  1. Decode tx hex
- *  2. Null prevout and duplicate input checks (CheckRegularTransaction)
+ *  2. CheckRegularTransaction: inputs and outputs present, sizes, output values, null prevouts,
+ *     duplicate inputs
  *  3. IsStandardTx (policy, standard only), dust among it
- *  4. Locktime finality check (1-4 are checkBeforeInputs: they need no source outputs)
+ *  4. Locktime finality, then the minimum size and versions (ContextualCheckTransaction); 1-4 are
+ *     checkBeforeInputs: they need no source outputs
  *  5. Validate sourceOutputs length
  *  6. BIP68 sequence locks check
  *  7. Coinbase maturity, unspendable inputs, input value ranges, fee (CheckTxInputs)
@@ -241,7 +244,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		}
 	}
 	// The limits the policy checks read, as libauth's VM reads them: its table for the version, overridden
-	const limits: PolicyLimits = { ...CONSENSUS_TABLES[version], ...config?.consensus };
+	const limits: Limits = { ...CONSENSUS_TABLES[version], ...config?.consensus };
 	// The policy checks count data carrier bytes as BCHN does, the whole script of each output; libauth's
 	// standard VM counts a length byte more per output and would refuse what BCHN accepts, so its own
 	// count is lifted out of the way
@@ -278,7 +281,9 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			};
 		}
 
-		// 2. Null prevout check
+		// 2. CheckRegularTransaction: CheckTransactionCommon, then null prevouts and duplicate inputs
+		const commonCheck = checkTransactionCommon(decoded, rawBytes.length, limits);
+		if (!commonCheck.ok) return commonCheck;
 		const prevoutInputs = decoded.inputs.map((inp) => ({
 			txid: binToHex(inp.outpointTransactionHash),
 			vout: inp.outpointIndex,
@@ -305,6 +310,9 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		// The mempool refuses a transaction that is not final yet as non-standard (64), not invalid: it may
 		// be valid in a later block (BCHN AcceptToMemoryPoolWorker re-codes ContextualCheckTransaction's)
 		if (!locktimeCheck.ok) return { ...locktimeCheck, code: REJECT_NONSTANDARD };
+		// The rest of ContextualCheckTransaction, which the mempool re-codes the same way
+		const contextualCheck = checkContextual(decoded, rawBytes.length, limits);
+		if (!contextualCheck.ok) return { ...contextualCheck, code: REJECT_NONSTANDARD };
 
 		return { ok: true, decoded };
 	}
@@ -373,29 +381,13 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		const valueCheck = checkInputValueRanges(sourceOutputs.map((so) => so.valueSatoshis));
 		if (!valueCheck.ok) return valueCheck;
 
-		// 7. Compute fee (validate output values first)
+		// 7. Compute fee
 		let inputSum = 0n;
 		for (const so of sourceOutputs) {
 			inputSum += so.valueSatoshis;
 		}
-		let outputSum = 0n;
-		for (const output of decoded.outputs) {
-			if (output.valueSatoshis < 0n || output.valueSatoshis > MAX_MONEY) {
-				return {
-					ok: false,
-					code: REJECT_INVALID,
-					error: "bad-txns-outputvalues-outofrange",
-				};
-			}
-			outputSum += output.valueSatoshis;
-			if (outputSum > MAX_MONEY) {
-				return {
-					ok: false,
-					code: REJECT_INVALID,
-					error: "bad-txns-outputvalues-outofrange",
-				};
-			}
-		}
+		// Output values were checked with the transaction on its own (CheckTransactionCommon)
+		const outputSum = decoded.outputs.reduce((sum, output) => sum + output.valueSatoshis, 0n);
 		const fee = inputSum - outputSum;
 		if (fee < 0n) {
 			return {

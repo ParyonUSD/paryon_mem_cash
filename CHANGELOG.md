@@ -188,6 +188,15 @@ transaction service's simulated network needs.
   (BCHN's `-datacarriersize`). Upstream (libauth) counted a length byte more per output and refused
   both.
 
+- **Consensus refusals in BCHN's words and place.** Before the inputs are looked up, a transaction
+  without inputs or outputs, over the size limit, or with output values out of range is refused as
+  `bad-txns-vin-empty`, `bad-txns-vout-empty`, `bad-txns-oversize`, `bad-txns-vout-toolarge` or
+  `bad-txns-txouttotal-toolarge` (code 16, `CheckTransactionCommon`); right after finality, one under
+  65 bytes or of a version other than 1 or 2 as `bad-txns-undersize` or `bad-txns-version`, code 64
+  as the mempool re-codes them. Upstream answered output values as `bad-txns-outputvalues-outofrange`
+  once the inputs were found (so `Missing inputs` first), and left the rest to libauth's VM, refused
+  last as `mandatory-script-verify-flag-failed (...) (code 16)`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

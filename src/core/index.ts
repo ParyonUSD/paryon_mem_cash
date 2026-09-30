@@ -1,5 +1,6 @@
 export type { AcceptResult } from "./accept.js";
 export { acceptToMempool } from "./accept.js";
+export { type BlockHeaderParams, createBlockHeader } from "./blockHeader.js";
 export type {
 	AddUtxoParams,
 	MineResult,

@@ -102,6 +102,14 @@ transaction service's simulated network needs.
   as `getrawtransaction` does; the schema marks them optional. Upstream gave an empty block hash and
   zeros.
 
+- **`mine()` builds real headers.** Each block gets an 80-byte header (version, the tip's hash,
+  the merkle root of its txids, its time, regtest bits, a nonce that sets apart every block the node
+  mines) and the double-sha256 hash of it, so blocks link by prev-hash and have distinct hashes. The
+  headers before it are left as they are: upstream stored 80 zero bytes under a hash of the height
+  and then rewrote the last 11 headers with the block's time (`setChainTip`), so the median time
+  past after `mine()` was the block's time; it is now the median of the real timestamps. New export
+  `createBlockHeader`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

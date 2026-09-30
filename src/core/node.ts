@@ -4,13 +4,10 @@ import {
 	decodeTransactionBch,
 	hashTransactionUiOrder,
 	hexToBin,
-	sha256,
-	utf8ToBin,
 } from "@bitauth/libauth";
 import type { StorageSnapshot, TestableStorage } from "../storage/index.js";
 import { createMemoryStorage } from "../storage/index.js";
 import type {
-	BlockHeader,
 	ProcessedBlock,
 	ProcessedBlockInput,
 	ProcessedBlockOutput,
@@ -36,6 +33,7 @@ import type {
 	ValidatedTransaction,
 } from "../validation/index.js";
 import { acceptToMempool } from "./accept.js";
+import { createBlockHeader } from "./blockHeader.js";
 import type { SubscriptionManager } from "./subscriptionManager.js";
 import { createSubscriptionManager } from "./subscriptionManager.js";
 
@@ -152,6 +150,8 @@ export function createNode(config?: NodeConfig): Node {
 	let verifier = config?.verifier;
 	// Pending timestamp for the next mined block (test helper: setNextBlockTimestamp). Consumed once by mine().
 	let pendingTimestamp: number | undefined;
+	// Sets apart the blocks this node mines, even two on the same parent with the same transactions
+	let nextNonce = 0;
 	const subscriptions = createSubscriptionManager(storage);
 
 	function deriveChainState(): ChainState | null {
@@ -417,28 +417,25 @@ export function createNode(config?: NodeConfig): Node {
 
 		storage.clearMempool();
 
-		const blockHash = binToHex(sha256.hash(utf8ToBin(`block-${newHeight}`)));
-		const header: BlockHeader = {
-			hash: blockHash,
+		// A real header on the tip, so blocks have distinct hashes that link, and a client can tell a
+		// reorg; upstream stored 80 zero bytes under a hash of the height, then rewrote the last 11
+		// headers (setChainTip) to set the median time past, which the real timestamps now give.
+		const header = createBlockHeader({
 			height: newHeight,
-			version: 1,
 			prevHash: tip?.hash ?? "0".repeat(64),
-			merkleRoot: "0".repeat(64),
+			txids: processedTxs.map((tx) => tx.txid),
 			timestamp: ts,
-			bits: 0x1d00ffff,
-			nonce: 0,
-			hex: "0".repeat(160),
-		};
+			nonce: nextNonce++,
+		});
 
 		const block: ProcessedBlock = {
 			height: newHeight,
-			hash: blockHash,
+			hash: header.hash,
 			header,
 			transactions: processedTxs,
 		};
 		const affectedScriptHashes = storage.applyBlock(block);
 
-		setChainTip(newHeight, ts);
 		subscriptions.notifyChanges(affectedScriptHashes);
 		subscriptions.notifyNewTip(header);
 

@@ -123,7 +123,8 @@ export type ValidationTypes = [
 	validation.VmVersion,
 ];
 
-// Every value the five packages exported at 0.0.9, and the fork's additions: computeScriptHash.
+// Every value the five packages exported at 0.0.9, and the fork's additions: computeScriptHash,
+// createBlockHeader.
 const values = [
 	"COINBASE_MATURITY",
 	"DEFAULT_MAX_FEE",
@@ -172,6 +173,7 @@ const values = [
 	"computeMerkleBranchAndRoot",
 	"computeScriptHash",
 	"computeTxMerkleBranch",
+	"createBlockHeader",
 	"createDispatch",
 	"createIndexer",
 	"createMemoryStorage",

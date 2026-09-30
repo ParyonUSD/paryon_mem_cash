@@ -248,7 +248,11 @@ export function createNode(config?: NodeConfig): Node {
 					message: "Missing inputs",
 				};
 			}
-			sourceOutputs.push(utxoToSourceOutput(utxo));
+			// A time lock counts from the median time past of the block before the coin's (BCHN
+			// CalculateSequenceLocks); upstream passed none, which the verifier read as 0, meeting every lock
+			const medianTimePast = utxo.height > 0 ? computeMedianTimePast(storage, utxo.height - 1) : undefined;
+			const sourceOutput = utxoToSourceOutput(utxo);
+			sourceOutputs.push(medianTimePast === undefined ? sourceOutput : { ...sourceOutput, medianTimePast });
 		}
 		return { ok: true, outputs: sourceOutputs };
 	}

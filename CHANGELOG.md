@@ -203,6 +203,13 @@ transaction service's simulated network needs.
   quoting the output's `token::OutputData` where BCHN gives one. Upstream left tokens to libauth's VM:
   `mandatory-script-verify-flag-failed (Transaction violates token validation: ...)`.
 
+- **BIP68 time locks enforced.** The node gives the verifier each confirmed coin's median time past
+  (of the block before the coin's), and the verifier takes a mempool coin's as the tip's, so a
+  time-based relative lock is met only once the tip's median time past is that many 512-second units
+  later, as BCHN's `CalculateSequenceLocks`. A coin seeded below the headers the node holds (with
+  `addUtxo` under `setChainTip`'s eleven) still counts from time 0. Upstream passed no median time
+  past, read as 0, so every time lock was met.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

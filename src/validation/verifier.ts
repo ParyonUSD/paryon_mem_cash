@@ -350,12 +350,15 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			decoded.version,
 			sourceOutputs.map((so, idx) => {
 				// A mempool coin (height 0) counts as confirmed in the next block, as BCHN's CheckSequenceLocks
-				// takes it, so a relative height lock on an unconfirmed parent is not final yet
+				// takes it, so a relative height lock on an unconfirmed parent is not final yet; and its time
+				// lock counts from the median time past before that block, the tip's
+				const mempoolCoin = so.height === 0;
 				const input: { sequenceNumber: number; height: number; medianTimePast?: number } = {
 					sequenceNumber: decoded.inputs[idx]?.sequenceNumber ?? 0xffffffff,
-					height: so.height === 0 ? spendHeight : (so.height ?? 1),
+					height: mempoolCoin ? spendHeight : (so.height ?? 1),
 				};
-				if (so.medianTimePast != null) input.medianTimePast = so.medianTimePast;
+				const medianTimePast = so.medianTimePast ?? (mempoolCoin ? chainState.medianTimePast : undefined);
+				if (medianTimePast != null) input.medianTimePast = medianTimePast;
 				return input;
 			}),
 			spendHeight,

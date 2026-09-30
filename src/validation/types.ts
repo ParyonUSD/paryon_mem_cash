@@ -62,7 +62,10 @@ export interface SourceOutput extends Output {
 	readonly height?: number;
 	/** Whether this output was created by a coinbase transaction. */
 	readonly isCoinbase?: boolean;
-	/** BIP113 MTP at height-1. Required for BIP68 time-based sequence locks. */
+	/**
+	 * BIP113 MTP at height-1. Required for BIP68 time-based sequence locks on a confirmed coin; without it
+	 * the lock counts from 0 and is met. A mempool coin's defaults to the chain state's, the tip's.
+	 */
 	readonly medianTimePast?: number;
 }
 

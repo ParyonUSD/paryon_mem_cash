@@ -98,13 +98,16 @@ function getOrCreateSet<K, V>(map: Map<K, Set<V>>, key: K): Set<V> {
 	return set;
 }
 
-/** Insert a confirmed history entry maintaining sort by (height ascending, txHash ascending). */
+/**
+ * Insert a confirmed history entry by height, after the entries already at its height: applyBlock inserts
+ * a block's transactions in block order, so they keep it, as Fulcrum's txNum order does. Upstream sorted
+ * them by txHash, which the status hash then followed.
+ */
 function insertHistorySorted(entries: HistoryEntry[], entry: HistoryEntry): void {
 	let i = entries.length;
 	while (i > 0) {
 		const prev = entries[i - 1];
-		if (!prev || prev.height < entry.height) break;
-		if (prev.height === entry.height && prev.txHash <= entry.txHash) break;
+		if (!prev || prev.height <= entry.height) break;
 		i--;
 	}
 	entries.splice(i, 0, entry);

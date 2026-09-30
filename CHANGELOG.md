@@ -230,6 +230,11 @@ transaction service's simulated network needs.
   Fulcrum's `Storage::getBalance`. Upstream counted every mempool output, so a chain of mempool
   transactions added up its intermediate outputs.
 
+- **History within a block in block order.** Confirmed history lists a block's transactions in their
+  order in the block, as Fulcrum's txNum order, and the status hash follows it. Upstream sorted them by
+  txid, so a parent and child confirmed together could come out child first, with a status hash other
+  than Fulcrum's.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

@@ -1,9 +1,16 @@
 // Transactions for the fork's tests: OP_TRUE coins, spent and chained without signatures. Left out of
 // the build (tsconfig.json); only tests import it.
 
-import { binToHex, encodeTransactionBch, hashTransactionUiOrder, hexToBin } from "@bitauth/libauth";
+import {
+	binToHex,
+	decodeTransactionBch,
+	encodeTransactionBch,
+	hashTransactionUiOrder,
+	hexToBin,
+} from "@bitauth/libauth";
 import { createIndexer, type Indexer } from "./electrum/index.js";
-import { computeScriptHash } from "./types/index.js";
+import { createBlockHeader } from "./core/index.js";
+import { computeScriptHash, makeOutpointKey, type ProcessedBlock } from "./types/index.js";
 import { createTxVerifier } from "./validation/index.js";
 
 /** OP_1: anyone can spend it, so a test needs no keys. */
@@ -76,3 +83,45 @@ export async function broadcast(node: Indexer, hex: string): Promise<string> {
 
 /** Fulcrum's wrapping of the node's refusal. */
 export const rejected = (reason: string) => `the transaction was rejected by network rules.\n\n${reason}\n`;
+
+/**
+ * The next block on the node's tip, holding `txs`, in the shape storage.applyBlock takes: a block that
+ * reaches the node from elsewhere, as the simulator connects them.
+ */
+export function blockOf(node: Indexer, txs: readonly TestTx[]): ProcessedBlock {
+	const tip = node.getTip();
+	const height = (tip?.height ?? 0) + 1;
+	const header = createBlockHeader({
+		height,
+		prevHash: tip?.hash ?? "00".repeat(32),
+		txids: txs.map((tx) => tx.txid),
+		timestamp: (tip?.timestamp ?? 0) + 600,
+		nonce: 1_000_000 + height,
+	});
+	return {
+		height,
+		hash: header.hash,
+		header,
+		transactions: txs.map(({ txid, hex }) => {
+			const decoded = decodeTransactionBch(hexToBin(hex));
+			if (typeof decoded === "string") throw new Error(decoded);
+			return {
+				txid,
+				rawHex: hex,
+				inputs: decoded.inputs.map((input) => ({
+					prevOutpoint: { txid: binToHex(input.outpointTransactionHash), vout: input.outpointIndex },
+				})),
+				outputs: decoded.outputs.map((output, vout) => ({
+					outpointKey: makeOutpointKey(txid, vout),
+					utxo: {
+						outpoint: { txid, vout },
+						satoshis: output.valueSatoshis,
+						scriptHash: computeScriptHash(output.lockingBytecode),
+						height,
+						lockingBytecode: output.lockingBytecode,
+					},
+				})),
+			};
+		}),
+	};
+}

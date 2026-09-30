@@ -3,8 +3,7 @@
 // "unknown" on the way to the verifier, so it linked nothing.
 
 import { describe, expect, it } from "vitest";
-import { addCoin, buildTx, createTestIndexer, OP_TRUE_SCRIPTHASH, type TestTx } from "../testkit.js";
-import { type ProcessedBlock, parseOutpointKey } from "../types/index.js";
+import { addCoin, blockOf, buildTx, createTestIndexer, OP_TRUE_SCRIPTHASH } from "../testkit.js";
 
 function family() {
 	const node = createTestIndexer();
@@ -13,39 +12,6 @@ function family() {
 	const grandchild = buildTx([{ txid: child.txid, vout: 0 }], [47_000n]);
 	for (const tx of [parent, child, grandchild]) expect(node.submitTransaction(tx.hex).success).toBe(true);
 	return { node, parent, child, grandchild };
-}
-
-/** A block confirming `txs` alone, applied the way a consumer connects a block it did not mine. */
-function blockOf(node: ReturnType<typeof createTestIndexer>, txs: TestTx[]): ProcessedBlock {
-	const height = (node.getTip()?.height ?? 0) + 1;
-	const hash = height.toString(16).padStart(64, "f");
-	return {
-		height,
-		hash,
-		header: {
-			hash,
-			height,
-			version: 1,
-			prevHash: "0".repeat(64),
-			merkleRoot: "0".repeat(64),
-			timestamp: 0,
-			bits: 0,
-			nonce: 0,
-			hex: "",
-		},
-		transactions: txs.map(({ txid, hex }) => {
-			const entry = node.getMempoolTx(txid);
-			if (!entry) throw new Error(`${txid} is not in the mempool`);
-			const spends = [...entry.entries.values()].flatMap((e) => [...e.confirmedSpends, ...e.unconfirmedSpends]);
-			const outputs = [...entry.entries.values()].flatMap((e) => e.outputs);
-			return {
-				txid,
-				rawHex: hex,
-				inputs: spends.map((key) => ({ prevOutpoint: parseOutpointKey(key) })),
-				outputs: outputs.map((key) => ({ outpointKey: key, utxo: { ...node.getMempoolUtxo(key)!, height } })),
-			};
-		}),
-	};
 }
 
 describe("mempool parents", () => {

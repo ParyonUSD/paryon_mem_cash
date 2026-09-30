@@ -287,6 +287,10 @@ export function createMemoryStorage(): TestableStorage {
 			// Process inputs (spend UTXOs)
 			for (const input of tx.inputs) {
 				const key = makeOutpointKey(input.prevOutpoint.txid, input.prevOutpoint.vout);
+				// A mempool transaction spending the same coin lost the double spend: it goes, with its
+				// descendants, as BCHN's removeForBlock removes conflicts
+				const spender = s.mempoolSpends.get(key);
+				if (spender !== undefined && spender !== tx.txid) removeMempoolTxInternal(spender, affected);
 				const existing = s.utxos.get(key);
 				if (existing) {
 					removedUtxos.push(cloneUtxo(existing));

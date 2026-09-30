@@ -110,6 +110,10 @@ transaction service's simulated network needs.
   past after `mine()` was the block's time; it is now the median of the real timestamps. New export
   `createBlockHeader`.
 
+- **A block drops the mempool transactions it conflicts with.** `applyBlock` removes a mempool
+  transaction spending a coin the block spends, with its descendants, as BCHN's `removeForBlock`
+  does. Upstream kept it, with the coin still marked as spent in the mempool.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

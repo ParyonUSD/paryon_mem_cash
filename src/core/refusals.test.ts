@@ -81,3 +81,20 @@ describe("a transaction already confirmed", () => {
 		expect(await broadcast(node, tx.hex)).toBe(rejected("Missing inputs"));
 	});
 });
+
+describe("a non-final transaction", () => {
+	it("is refused in BCHN's words: reason, debug message and the mempool's code 64", async () => {
+		const node = createTestIndexer(200);
+		// Final only from the block after next: a locktime must be below the height of the next block
+		const tx = buildTx([{ ...addCoin(node, "aa"), sequence: 0 }], [99_000n], { locktime: 201 });
+		expect(await broadcast(node, tx.hex)).toBe(rejected("bad-txns-nonfinal, non-final transaction (code 64)"));
+		expect(node.submitTransaction(tx.hex)).toMatchObject({ code: 64, error: "bad-txns-nonfinal" });
+	});
+
+	it("keeps a debug message in every refusal, as BCHN's FormatStateMessage does", async () => {
+		const node = createTestIndexer();
+		const tx = buildTx([addCoin(node, "aa", 1_000n)], [2_000n]);
+		// The debug text itself is upstream's (BCHN formats the amounts in BCH); only its place is BCHN's
+		expect(await broadcast(node, tx.hex)).toMatch(/\n\nbad-txns-in-belowout, .+ \(code 16\)\n$/);
+	});
+});

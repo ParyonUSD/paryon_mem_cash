@@ -72,6 +72,13 @@ transaction service's simulated network needs.
   coins hold one of its outputs (spent in the mempool or not), as BCHN's `sendrawtransaction`
   decides it. Upstream validated it again and answered that its inputs were missing or spent.
 
+- **Refusals in BCHN's `FormatStateMessage` form, non-final with code 64.** A refusal's text is the
+  reason, the debug message after a comma when there is one, then the code: a transaction not final
+  yet reads `bad-txns-nonfinal, non-final transaction (code 64)`, the `non-final transaction` a
+  client classifies. The verifier gives a non-final transaction code 64 (`REJECT_NONSTANDARD`), as
+  BCHN's mempool re-codes it; `checkLocktimeFinality` keeps the consensus code 16. Upstream left out
+  the debug message and answered `bad-txns-nonfinal (code 16)`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

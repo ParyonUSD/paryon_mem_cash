@@ -217,7 +217,9 @@ export function createNode(config?: NodeConfig): Node {
 		debugMessage?: string;
 		message?: string;
 	}): SubmitFailure {
-		const message = f.message ?? `${f.error} (code ${f.code})`;
+		// BCHN's FormatStateMessage: the reason, the debug message after a comma, then the code
+		const debug = f.debugMessage ? `, ${f.debugMessage}` : "";
+		const message = f.message ?? `${f.error}${debug} (code ${f.code})`;
 		const result: SubmitFailure = { success: false, code: f.code, error: f.error, message };
 		if (f.debugMessage != null) (result as { debugMessage: string }).debugMessage = f.debugMessage;
 		return result;

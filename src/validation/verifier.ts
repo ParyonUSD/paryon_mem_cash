@@ -285,7 +285,9 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			spendHeight,
 			chainState.medianTimePast,
 		);
-		if (!locktimeCheck.ok) return locktimeCheck;
+		// The mempool refuses a transaction that is not final yet as non-standard (64), not invalid: it may
+		// be valid in a later block (BCHN AcceptToMemoryPoolWorker re-codes ContextualCheckTransaction's)
+		if (!locktimeCheck.ok) return { ...locktimeCheck, code: REJECT_NONSTANDARD };
 
 		// Re-encode to get canonical bytes for size and txid
 		const encodedBytes = encodeTransactionBch(decoded);

@@ -114,6 +114,11 @@ transaction service's simulated network needs.
   transaction spending a coin the block spends, with its descendants, as BCHN's `removeForBlock`
   does. Upstream kept it, with the coin still marked as spent in the mempool.
 
+- **`undoBlock` restores no phantom coins and keeps the mempool.** A coin the undone block both
+  created and spent is not restored, and the block's history entries and transaction records are
+  removed by txid rather than every record at its height. The mempool is left for the node to
+  rebuild (see `disconnectBlocks`); upstream cleared it.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

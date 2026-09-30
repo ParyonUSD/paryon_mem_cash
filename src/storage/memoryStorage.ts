@@ -381,6 +381,7 @@ export function createMemoryStorage(): TestableStorage {
 		if (!undo) return new Set();
 
 		const affected = new Set(undo.affectedScriptHashes);
+		const blockTxids = new Set(s.blockTxids.get(height) ?? []);
 
 		// Remove UTXOs added by this block
 		for (const key of undo.addedUtxos) {
@@ -395,18 +396,22 @@ export function createMemoryStorage(): TestableStorage {
 			}
 		}
 
-		// Restore UTXOs spent by this block
+		// Restore UTXOs spent by this block, except those it created itself: a coin a parent created and
+		// a child in the same block spent existed neither before nor after, and upstream brought it back
+		const added = new Set(undo.addedUtxos);
 		for (const utxo of undo.removedUtxos) {
 			const key = makeOutpointKey(utxo.outpoint.txid, utxo.outpoint.vout);
+			if (added.has(key)) continue;
 			s.utxos.set(key, utxo);
 			getOrCreateSet(s.utxosByScriptHash, utxo.scriptHash).add(key);
 		}
 
-		// Remove history entries at this height
+		// Remove the block's history entries and transaction records. By txid, not by height: other
+		// records can sit at the same height (coins a consumer seeded with the test helpers).
 		for (const sh of affected) {
 			const entries = s.history.get(sh);
 			if (entries) {
-				const filtered = entries.filter((e) => e.height !== height);
+				const filtered = entries.filter((e) => !blockTxids.has(e.txHash));
 				if (filtered.length === 0) {
 					s.history.delete(sh);
 				} else {
@@ -414,17 +419,9 @@ export function createMemoryStorage(): TestableStorage {
 				}
 			}
 		}
-
-		// Remove tx records for transactions in this block
-		const undoBlockData = s.undoInfos.get(height);
-		if (undoBlockData) {
-			// Remove txids that were added at this height
-			for (const [txid, record] of s.txIndex) {
-				if (record.height === height) {
-					s.txIndex.delete(txid);
-					s.rawTxs.delete(txid);
-				}
-			}
+		for (const txid of blockTxids) {
+			s.txIndex.delete(txid);
+			s.rawTxs.delete(txid);
 		}
 
 		// Remove block txids
@@ -441,8 +438,8 @@ export function createMemoryStorage(): TestableStorage {
 			s.headers.pop();
 		}
 
-		// Clear mempool (after reorg, mempool is invalidated)
-		clearMempoolInternal(affected);
+		// The mempool is left alone. Upstream cleared it; the node instead takes it out before undoing
+		// and admits the undone transactions and it again (Node.disconnectBlocks).
 
 		s.undoInfos.delete(height);
 

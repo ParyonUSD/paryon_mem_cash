@@ -65,7 +65,10 @@ export interface StorageWriter {
 	/** Apply a processed block to the confirmed state. Returns affected scripthashes. */
 	applyBlock(block: ProcessedBlock): Set<ScriptHash>;
 
-	/** Undo (revert) the block at the given height. Returns affected scripthashes. */
+	/**
+	 * Undo (revert) the block at the given height. Returns affected scripthashes. Leaves the mempool as
+	 * it is: a mempool transaction spending the block's outputs is the caller's to take out.
+	 */
 	undoBlock(height: number): Set<ScriptHash>;
 
 	/** Add a transaction to the mempool. Returns affected scripthashes. */

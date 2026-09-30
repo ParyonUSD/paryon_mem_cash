@@ -59,8 +59,8 @@ The folders under `src/` are upstream's five packages, and each keeps its README
   - checks in BCHN's order: the transaction on its own (`CheckRegularTransaction`, `IsStandardTx`, finality) before its inputs are looked up, so a non-final transaction is refused as such even when an input is missing or conflicts; BIP68 before `CheckTxInputs`; tokens after the fees;
   - refusals in BCHN's words where libauth's were given: standardness (`scriptpubkey`, `dust`, `oversize-op-return`, `bad-txns-nonstandard-inputs`, ...), `bad-txns-inputs-duplicate`, `bad-txns-vout-toolarge`, `bad-txns-undersize`, `bad-txns-version`, the `bad-txns-token-*` reasons, amounts in BCH in `bad-txns-in-belowout`; OP_RETURN data counted as BCHN counts it;
   - BIP68 time locks enforced against the median time past;
-  - `listunspent` in Fulcrum's order, with its token filter (also on `get_balance`); `get_balance` without mempool outputs the mempool spends; history within a block in block order; `get_history`'s `to_height` exclusive; `get_first_use` from the mempool at -1 with an unconfirmed parent;
-  - OP_RETURN outputs not indexed; verbose transactions with BCHN's asm, types and addresses (P2SH32 included); Fulcrum's error codes for broadcast and `transaction.get`; hex parameters in either case.
+  - `listunspent` in Fulcrum's order, with its token filter (also on `get_balance`); `get_balance` without mempool outputs the mempool spends; blocks from `mine()` in CTOR order (by txid), `applyBlock` connecting a child ahead of its parent, and history within a block in block order; `get_history`'s `to_height` exclusive; `get_first_use` from the mempool at -1 with an unconfirmed parent;
+  - OP_RETURN outputs not indexed; verbose transactions with BCHN's asm, types and addresses (P2SH32 included, pay-to-script `script` since May 2026); Fulcrum's error codes for broadcast and `transaction.get`; hex parameters in either case.
 
 Where the upstream READMEs under `src/` describe behaviour these fixes changed, they have been updated.
 

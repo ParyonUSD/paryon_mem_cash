@@ -79,6 +79,14 @@ transaction service's simulated network needs.
   BCHN's mempool re-codes it; `checkLocktimeFinality` keeps the consensus code 16. Upstream left out
   the debug message and answered `bad-txns-nonfinal (code 16)`.
 
+- **Mempool transactions linked to their parents.** A transaction spending a mempool coin records it
+  as an unconfirmed spend and the spender as a child, so its mempool history entries are at height -1
+  (Fulcrum's) and removing a transaction removes its descendants. A block that confirms a parent keeps
+  its children in the mempool: what they spend of it becomes a confirmed spend, and a child left with
+  no unconfirmed parent moves to height 0. Upstream passed a mempool coin to the verifier without a
+  height, read as 1, so it linked nothing; and a block confirming a transaction removed its
+  descendants too.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

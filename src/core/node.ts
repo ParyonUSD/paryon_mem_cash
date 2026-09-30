@@ -489,9 +489,9 @@ function utxoToSourceOutput(utxo: UtxoEntry): SourceOutput {
 		lockingBytecode: utxo.lockingBytecode,
 		valueSatoshis: utxo.satoshis,
 	};
-	if (utxo.height > 0) {
-		(so as { height: number }).height = utxo.height;
-	}
+	// Height 0 is a mempool coin: acceptance links the spender to it as a parent. Upstream left the
+	// height out for it, which the verifier and acceptance read as a coin confirmed at height 1.
+	(so as { height: number }).height = utxo.height;
 	if (utxo.isCoinbase) {
 		(so as { isCoinbase: boolean }).isCoinbase = true;
 	}

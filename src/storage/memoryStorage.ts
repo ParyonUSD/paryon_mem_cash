@@ -324,9 +324,9 @@ export function createMemoryStorage(): TestableStorage {
 				s.rawTxs.set(tx.txid, tx.rawHex);
 			}
 
-			// Remove from mempool if present
+			// Remove from mempool if present. Its children stay: they spend a confirmed coin now.
 			if (s.mempoolTxs.has(tx.txid)) {
-				removeMempoolTxInternal(tx.txid, affected);
+				confirmMempoolTx(tx.txid, affected);
 			}
 		}
 
@@ -523,52 +523,87 @@ export function createMemoryStorage(): TestableStorage {
 
 		// Remove in reverse order (children first)
 		for (let i = toRemove.length - 1; i >= 0; i--) {
-			const removeTxid = toRemove[i] as Txid;
-			const tx = s.mempoolTxs.get(removeTxid);
-			if (!tx) continue;
+			removeOneMempoolTx(toRemove[i] as Txid, affected);
+		}
+	}
 
-			for (const [scriptHash, entry] of tx.entries) {
+	/** Remove one transaction from the mempool, leaving its children to the caller. */
+	function removeOneMempoolTx(removeTxid: Txid, affected: Set<ScriptHash>): void {
+		const tx = s.mempoolTxs.get(removeTxid);
+		if (!tx) return;
+
+		for (const [scriptHash, entry] of tx.entries) {
+			affected.add(scriptHash);
+
+			// Remove spend tracking
+			for (const key of entry.confirmedSpends) {
+				s.mempoolSpends.delete(key);
+			}
+			for (const key of entry.unconfirmedSpends) {
+				s.mempoolSpends.delete(key);
+			}
+
+			// Remove mempool UTXOs
+			for (const key of entry.outputs) {
+				s.mempoolUtxos.delete(key);
+				const shSet = s.mempoolUtxosByScriptHash.get(scriptHash);
+				if (shSet) {
+					shSet.delete(key);
+					if (shSet.size === 0) s.mempoolUtxosByScriptHash.delete(scriptHash);
+				}
+			}
+
+			// Remove mempool history
+			const mempoolEntries = s.mempoolHistory.get(scriptHash);
+			if (mempoolEntries) {
+				const filtered = mempoolEntries.filter((e) => e.txHash !== removeTxid);
+				if (filtered.length === 0) {
+					s.mempoolHistory.delete(scriptHash);
+				} else {
+					s.mempoolHistory.set(scriptHash, filtered);
+				}
+			}
+		}
+
+		// Remove parent→child reference
+		for (const parentTxid of tx.parents) {
+			const parentTx = s.mempoolTxs.get(parentTxid);
+			if (parentTx) {
+				(parentTx.children as Set<Txid>).delete(removeTxid);
+			}
+		}
+
+		s.mempoolTxs.delete(removeTxid);
+	}
+
+	/**
+	 * Take a transaction a block confirmed out of the mempool. Its children stay, as they do in BCHN's
+	 * mempool: what they spend of it is a confirmed coin now, and one left with no unconfirmed parent
+	 * moves from height -1 to 0 in the mempool history, as Fulcrum files it.
+	 */
+	function confirmMempoolTx(txid: Txid, affected: Set<ScriptHash>): void {
+		const tx = s.mempoolTxs.get(txid);
+		if (!tx) return;
+		removeOneMempoolTx(txid, affected);
+		for (const childTxid of tx.children) {
+			const child = s.mempoolTxs.get(childTxid);
+			if (!child) continue;
+			for (const entry of child.entries.values()) {
+				const fromParent = entry.unconfirmedSpends.filter((key) => key.startsWith(`${txid}:`));
+				if (fromParent.length === 0) continue;
+				const unconfirmed = entry.unconfirmedSpends as OutpointKey[];
+				unconfirmed.splice(0, unconfirmed.length, ...unconfirmed.filter((key) => !fromParent.includes(key)));
+				(entry.confirmedSpends as OutpointKey[]).push(...fromParent);
+			}
+			(child.parents as Set<Txid>).delete(txid);
+			if (child.parents.size > 0) continue;
+			for (const scriptHash of child.entries.keys()) {
 				affected.add(scriptHash);
-
-				// Remove spend tracking
-				for (const key of entry.confirmedSpends) {
-					s.mempoolSpends.delete(key);
-				}
-				for (const key of entry.unconfirmedSpends) {
-					s.mempoolSpends.delete(key);
-				}
-
-				// Remove mempool UTXOs
-				for (const key of entry.outputs) {
-					s.mempoolUtxos.delete(key);
-					const shSet = s.mempoolUtxosByScriptHash.get(scriptHash);
-					if (shSet) {
-						shSet.delete(key);
-						if (shSet.size === 0) s.mempoolUtxosByScriptHash.delete(scriptHash);
-					}
-				}
-
-				// Remove mempool history
-				const mempoolEntries = s.mempoolHistory.get(scriptHash);
-				if (mempoolEntries) {
-					const filtered = mempoolEntries.filter((e) => e.txHash !== removeTxid);
-					if (filtered.length === 0) {
-						s.mempoolHistory.delete(scriptHash);
-					} else {
-						s.mempoolHistory.set(scriptHash, filtered);
-					}
-				}
+				const entries = s.mempoolHistory.get(scriptHash) ?? [];
+				const others = entries.filter((e) => e.txHash !== childTxid);
+				insertMempoolHistorySorted(others, { txHash: childTxid, height: 0, fee: child.fee });
+				s.mempoolHistory.set(scriptHash, others);
 			}
-
-			// Remove parent→child reference
-			for (const parentTxid of tx.parents) {
-				const parentTx = s.mempoolTxs.get(parentTxid);
-				if (parentTx) {
-					(parentTx.children as Set<Txid>).delete(removeTxid);
-				}
-			}
-
-			s.mempoolTxs.delete(removeTxid);
 		}
 	}
 

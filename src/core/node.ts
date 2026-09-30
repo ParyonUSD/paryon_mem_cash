@@ -24,6 +24,7 @@ import {
 	computeMedianTimePast,
 	computeScriptHash,
 	makeOutpointKey,
+	REJECT_DUPLICATE,
 	REJECT_INVALID,
 	REJECT_MALFORMED,
 } from "../types/index.js";
@@ -78,6 +79,12 @@ export interface SubmitFailure {
 	readonly error: string;
 	/** BCHN strDebugMessage — optional extra context. */
 	readonly debugMessage?: string;
+	/**
+	 * The refusal as BCHN's sendrawtransaction words it, which Fulcrum passes on: the reject reason and
+	 * code for a transaction mempool validation refused, but "Missing inputs" alone for an input the
+	 * node does not have, which BCHN reports without a validation state.
+	 */
+	readonly message: string;
 }
 
 /** Result of submitting a transaction. */
@@ -162,6 +169,7 @@ export function createNode(config?: NodeConfig): Node {
 		code: number;
 		error: string;
 		debugMessage?: string;
+		message?: string;
 	}
 
 	function resolveSourceOutputs(
@@ -177,13 +185,25 @@ export function createNode(config?: NodeConfig): Node {
 				debugMessage: decoded,
 			};
 
+		const outpoints = decoded.inputs.map((input) =>
+			makeOutpointKey(binToHex(input.outpointTransactionHash), input.outpointIndex),
+		);
+		// BCHN looks for a conflict on every input before it looks for a missing one
+		// (AcceptToMemoryPoolWorker), and answers the two differently: a client retries a missing
+		// input, which a lagging server explains, but not a double spend.
+		if (outpoints.some((key) => storage.getMempoolSpender(key) !== undefined)) {
+			return { ok: false, code: REJECT_DUPLICATE, error: "txn-mempool-conflict" };
+		}
 		const sourceOutputs: SourceOutput[] = [];
-		for (const input of decoded.inputs) {
-			const parentTxid = binToHex(input.outpointTransactionHash);
-			const key = makeOutpointKey(parentTxid, input.outpointIndex);
+		for (const key of outpoints) {
 			const utxo = storage.getUtxoByOutpoint(key);
 			if (!utxo) {
-				return { ok: false, code: REJECT_INVALID, error: "bad-txns-inputs-missingorspent" };
+				return {
+					ok: false,
+					code: REJECT_INVALID,
+					error: "bad-txns-inputs-missingorspent",
+					message: "Missing inputs",
+				};
 			}
 			sourceOutputs.push(utxoToSourceOutput(utxo));
 		}
@@ -195,8 +215,10 @@ export function createNode(config?: NodeConfig): Node {
 		code: number;
 		error: string;
 		debugMessage?: string;
+		message?: string;
 	}): SubmitFailure {
-		const result: SubmitFailure = { success: false, code: f.code, error: f.error };
+		const message = f.message ?? `${f.error} (code ${f.code})`;
+		const result: SubmitFailure = { success: false, code: f.code, error: f.error, message };
 		if (f.debugMessage != null) (result as { debugMessage: string }).debugMessage = f.debugMessage;
 		return result;
 	}
@@ -211,7 +233,7 @@ export function createNode(config?: NodeConfig): Node {
 		if (verifier) {
 			const chainState = deriveChainState();
 			if (!chainState) {
-				return { success: false, code: REJECT_INVALID, error: "No chain tip set" };
+				return toSubmitFailure({ code: REJECT_INVALID, error: "No chain tip set" });
 			}
 			const result = verifier.verify(rawHex, sourceOutputs, chainState);
 			if (!result.success) return toSubmitFailure(result);
@@ -220,12 +242,7 @@ export function createNode(config?: NodeConfig): Node {
 			const rawBytes = hexToBin(rawHex);
 			const decoded = decodeTransactionBch(rawBytes);
 			if (typeof decoded === "string") {
-				return {
-					success: false,
-					code: REJECT_MALFORMED,
-					error: "TX decode failed",
-					debugMessage: decoded,
-				};
+				return toSubmitFailure({ code: REJECT_MALFORMED, error: "TX decode failed", debugMessage: decoded });
 			}
 			const txid = binToHex(hashTransactionUiOrder(rawBytes));
 			const inputSum = sourceOutputs.reduce((sum, so) => sum + so.valueSatoshis, 0n);
@@ -254,14 +271,14 @@ export function createNode(config?: NodeConfig): Node {
 
 	function debugTransaction(rawHex: string): DebugResult | SubmitFailure {
 		if (!verifier) {
-			return { success: false, code: REJECT_INVALID, error: "No verifier configured" };
+			return toSubmitFailure({ code: REJECT_INVALID, error: "No verifier configured" });
 		}
 		const resolved = resolveSourceOutputs(rawHex);
 		if (!resolved.ok) return toSubmitFailure(resolved);
 
 		const chainState = deriveChainState();
 		if (!chainState) {
-			return { success: false, code: REJECT_INVALID, error: "No chain tip set" };
+			return toSubmitFailure({ code: REJECT_INVALID, error: "No chain tip set" });
 		}
 
 		return verifier.debug(rawHex, resolved.outputs, chainState);
@@ -416,6 +433,7 @@ export function createNode(config?: NodeConfig): Node {
 		getMempoolTx: storage.getMempoolTx,
 		getTxidsAtHeight: storage.getTxidsAtHeight,
 		getUtxoByOutpoint: storage.getUtxoByOutpoint,
+		getMempoolSpender: storage.getMempoolSpender,
 		getMempoolTxids: storage.getMempoolTxids,
 		getMempoolUtxo: storage.getMempoolUtxo,
 		// Node operations

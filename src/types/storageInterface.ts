@@ -50,6 +50,9 @@ export interface StorageReader {
 	/** Get a single UTXO by outpoint key (confirmed or mempool, undefined if spent in mempool). */
 	getUtxoByOutpoint(key: OutpointKey): UtxoEntry | undefined;
 
+	/** The mempool transaction spending an outpoint, if any. */
+	getMempoolSpender(key: OutpointKey): Txid | undefined;
+
 	/** Get all mempool transaction IDs. */
 	getMempoolTxids(): Txid[];
 

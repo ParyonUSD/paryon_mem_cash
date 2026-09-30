@@ -55,6 +55,14 @@ transaction service's simulated network needs.
   is now what the negotiated version promises; the Indexer's request types (`ElectrumCashTestSchema`)
   are built on the 1.5.3 schema to match, and `server.version` is typed to take a `[min, max]` range.
 
+- **A double spend and a missing input answer differently, as BCHN.** An input a mempool transaction
+  already spends is refused with `txn-mempool-conflict (code 18)`, checked on every input before any
+  is looked up; an input the node does not have, or a block spent, with `Missing inputs` and no code,
+  which is what BCHN's `sendrawtransaction` says. Upstream answered `bad-txns-inputs-missingorspent
+  (code 16)` for both. `SubmitFailure` gains `message`, the text BCHN answers with, which the
+  broadcast handlers wrap; `error` and `code` keep BCHN's reject reason and code. New
+  `StorageReader.getMempoolSpender(outpoint)`.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

@@ -247,8 +247,8 @@ export function broadcast(ctx: ProtocolContext, params: unknown[]): HandlerResul
 
 	const result = ctx.node.submitTransaction(rawTx);
 	if (!result.success) {
-		// Match Fulcrum error format: "the transaction was rejected by network rules.\n\n<reason> (code <code>)\n"
-		const msg = `the transaction was rejected by network rules.\n\n${result.error} (code ${result.code})\n`;
+		// Fulcrum wraps the node's answer: "the transaction was rejected by network rules.\n\n<answer>\n"
+		const msg = `the transaction was rejected by network rules.\n\n${result.message}\n`;
 		return err(ERR_DAEMON_ERROR, msg);
 	}
 	return ok(result.txid);
@@ -334,7 +334,7 @@ export function broadcastPackage(ctx: ProtocolContext, params: unknown[]): Handl
 		}
 		const result = ctx.node.submitTransaction(rawTx);
 		if (!result.success) {
-			const msg = `the transaction was rejected by network rules.\n\n${result.error} (code ${result.code})\n`;
+			const msg = `the transaction was rejected by network rules.\n\n${result.message}\n`;
 			return err(ERR_DAEMON_ERROR, msg);
 		}
 		txids.push(result.txid);

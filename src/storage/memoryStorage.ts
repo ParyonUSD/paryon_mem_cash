@@ -263,6 +263,10 @@ export function createMemoryStorage(): TestableStorage {
 		return utxo ? cloneUtxo(utxo) : undefined;
 	}
 
+	function getMempoolSpender(key: OutpointKey): Txid | undefined {
+		return s.mempoolSpends.get(key);
+	}
+
 	function getMempoolTxids(): Txid[] {
 		return [...s.mempoolTxs.keys()];
 	}
@@ -641,6 +645,7 @@ export function createMemoryStorage(): TestableStorage {
 		getMempoolTx,
 		getTxidsAtHeight,
 		getUtxoByOutpoint,
+		getMempoolSpender,
 		getMempoolTxids,
 		getMempoolUtxo,
 		// StorageWriter

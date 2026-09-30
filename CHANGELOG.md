@@ -63,6 +63,11 @@ transaction service's simulated network needs.
   broadcast handlers wrap; `error` and `code` keep BCHN's reject reason and code. New
   `StorageReader.getMempoolSpender(outpoint)`.
 
+- **Rebroadcasting a mempool transaction succeeds.** `submitTransaction` and the broadcast handlers
+  answer a transaction the mempool already holds with its txid, as BCHN's `sendrawtransaction` does,
+  without notifying anyone (`affectedScriptHashes` is empty). Upstream refused it as spending its own
+  inputs again.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

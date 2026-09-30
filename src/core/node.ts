@@ -224,6 +224,13 @@ export function createNode(config?: NodeConfig): Node {
 	}
 
 	function submitTransaction(rawHex: string): SubmitResult {
+		// BCHN's sendrawtransaction answers a transaction its mempool already holds with the txid, as
+		// if it had just been accepted, so a client can broadcast again without telling the two apart.
+		const known = storage.getMempoolTx(binToHex(hashTransactionUiOrder(hexToBin(rawHex))));
+		if (known) {
+			return { success: true, txid: known.txid, fee: known.fee, size: known.size, affectedScriptHashes: new Set() };
+		}
+
 		const resolved = resolveSourceOutputs(rawHex);
 		if (!resolved.ok) return toSubmitFailure(resolved);
 		const sourceOutputs = resolved.outputs;

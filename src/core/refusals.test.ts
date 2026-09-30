@@ -43,3 +43,14 @@ describe("refusals", () => {
 		expect(await broadcast(node, both.hex)).toBe(rejected("txn-mempool-conflict (code 18)"));
 	});
 });
+
+describe("a transaction the node already has", () => {
+	it("answers a rebroadcast of a mempool transaction with its txid, as BCHN's sendrawtransaction does", async () => {
+		const node = createTestIndexer();
+		const tx = buildTx([addCoin(node, "aa")], [99_000n]);
+		expect(await broadcast(node, tx.hex)).toBe(tx.txid);
+		expect(await broadcast(node, tx.hex)).toBe(tx.txid);
+		expect(node.submitTransaction(tx.hex)).toMatchObject({ success: true, txid: tx.txid, fee: 1_000n });
+		expect(node.getMempoolTxids()).toEqual([tx.txid]);
+	});
+});

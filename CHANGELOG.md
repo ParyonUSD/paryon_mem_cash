@@ -245,6 +245,12 @@ transaction service's simulated network needs.
   a `to_height` below -1 or below `from_height` as `Bad to_height argument` (-32602). Upstream took
   `to_height` as inclusive and any negative as no bound, and worded the errors `Invalid ...`.
 
+- **Fulcrum's error codes for broadcast and `transaction.get`.** A refused broadcast (and
+  broadcast_package) answers code 1, `Code_App_BadRequest`, as Fulcrum; `transaction.get` of an
+  unknown txid answers code 2 with bitcoind's error in ElectrumX's form, `daemon error:
+  DaemonError({'code': -5, 'message': 'No such mempool or blockchain transaction. ...'})`. Upstream
+  answered 2 for the first and 1 with the bare message for the second.
+
 ## 0.0.9
 
 Recovered from the npm build (gitHead `6ee1892`, published 2026-07-23).

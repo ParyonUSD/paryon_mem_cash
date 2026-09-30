@@ -30,9 +30,11 @@ export function get(ctx: ProtocolContext, params: unknown[]): HandlerResult {
 
 	const rawHex = ctx.node.getRawTx(txid);
 	if (rawHex === undefined) {
+		// Fulcrum passes bitcoind's getrawtransaction error on as a daemon error, in ElectrumX's form
 		return err(
-			ERR_BAD_REQUEST,
-			"No such mempool or blockchain transaction. Use gettransaction for wallet transactions.",
+			ERR_DAEMON_ERROR,
+			"daemon error: DaemonError({'code': -5, 'message': 'No such mempool or blockchain transaction. " +
+				"Use gettransaction for wallet transactions.'})",
 		);
 	}
 
@@ -218,9 +220,10 @@ export function broadcast(ctx: ProtocolContext, params: unknown[]): HandlerResul
 
 	const result = ctx.node.submitTransaction(rawTx);
 	if (!result.success) {
-		// Fulcrum wraps the node's answer: "the transaction was rejected by network rules.\n\n<answer>\n"
+		// Fulcrum wraps the node's answer: "the transaction was rejected by network rules.\n\n<answer>\n",
+		// with code 1 (Code_App_BadRequest), as ElectrumX does; upstream answered 2
 		const msg = `the transaction was rejected by network rules.\n\n${result.message}\n`;
-		return err(ERR_DAEMON_ERROR, msg);
+		return err(ERR_BAD_REQUEST, msg);
 	}
 	return ok(result.txid);
 }
@@ -306,7 +309,7 @@ export function broadcastPackage(ctx: ProtocolContext, params: unknown[]): Handl
 		const result = ctx.node.submitTransaction(rawTx);
 		if (!result.success) {
 			const msg = `the transaction was rejected by network rules.\n\n${result.message}\n`;
-			return err(ERR_DAEMON_ERROR, msg);
+			return err(ERR_BAD_REQUEST, msg);
 		}
 		txids.push(result.txid);
 	}

@@ -91,7 +91,9 @@ export function createVmFacade(
 			case "BCH_2026_05":
 				return facade(createVirtualMachineBch2026(standard));
 			case "BCH_SPEC":
-				return facade(createVirtualMachineBchSpec(standard) as unknown as ReturnType<typeof createVirtualMachineBch2025>);
+				return facade(
+					createVirtualMachineBchSpec(standard) as unknown as ReturnType<typeof createVirtualMachineBch2025>,
+				);
 		}
 	}
 	const crypto = { ripemd160, secp256k1, sha1, sha256 };
@@ -105,6 +107,9 @@ export function createVmFacade(
 	})();
 	const maximumStackItemLength = consensusOverrides.maximumStackItemLength;
 	if (maximumStackItemLength !== undefined) {
+		// The operations table is a union of the spec and the common instruction sets' state types, and
+		// these rebuilt operations go into it for every VM version, so no narrower type fits all of them.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		type State = any;
 		const pushCommitment = (state: State, output: { token?: { nft?: { commitment: Uint8Array } } }) => (
 			output.token?.nft === undefined

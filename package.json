@@ -24,7 +24,8 @@
     "build": "rm -rf dist && tsc",
     "test": "vitest",
     "test:unit": "vitest --run",
-    "check": "tsc --noEmit && tsc -p tsconfig.test.json"
+    "lint": "eslint .",
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json && eslint ."
   },
   "keywords": [
     "bitcoin-cash",
@@ -43,8 +44,12 @@
     "@bitauth/libauth": "3.1.0-next.8"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.2",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^5.0.0"
   },
   "engines": {

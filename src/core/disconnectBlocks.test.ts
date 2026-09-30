@@ -4,7 +4,7 @@
 // way to disconnect a block but undoBlock, which cleared the mempool.
 
 import { describe, expect, it } from "vitest";
-import { addCoin, broadcast, buildTx, createTestIndexer, OP_TRUE_SCRIPTHASH } from "../testkit.js";
+import { addCoin, blockOf, broadcast, buildTx, createTestIndexer, OP_TRUE_SCRIPTHASH } from "../testkit.js";
 
 function minedFamily() {
 	const node = createTestIndexer(200);
@@ -82,6 +82,26 @@ describe("disconnectBlocks", () => {
 		expect(node.getTip()).toEqual(tip);
 		expect(node.getMempoolTxids()).toEqual([pending.txid]);
 		expect(await broadcast(node, pending.hex)).toBe(pending.txid);
+	});
+
+	it("refuses a block it holds no raw transaction for, leaving the node as it was", async () => {
+		// ProcessedBlockTx.rawHex is optional, and a block applied without it cannot return its
+		// transactions to the mempool. The disconnect undid the block, then threw a TypeError reading
+		// the missing hex, leaving the block gone and the mempool empty.
+		const node = createTestIndexer(200);
+		const mined = buildTx([addCoin(node, "aa")], [49_000n, 50_000n]);
+		const block = blockOf(node, [mined]);
+		node.storage.applyBlock({
+			...block,
+			transactions: block.transactions.map(({ rawHex: _rawHex, ...tx }) => tx),
+		});
+		const pending = buildTx([{ txid: mined.txid, vout: 1 }], [49_000n]);
+		expect(await broadcast(node, pending.hex)).toBe(pending.txid);
+		const tip = node.getTip();
+
+		expect(() => node.disconnectBlocks(1)).toThrow(`no raw transaction for ${mined.txid}`);
+		expect(node.getTip()).toEqual(tip);
+		expect(node.getMempoolTxids()).toEqual([pending.txid]);
 	});
 
 	it("drops a returning transaction no longer final at the lower tip", () => {

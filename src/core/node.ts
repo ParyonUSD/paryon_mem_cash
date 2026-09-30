@@ -141,7 +141,8 @@ export interface Node extends StorageReader {
 	 * no longer valid there (a conflict, a lock not final any more) drops out with its descendants.
 	 * `replacementTxs` are admitted first, so the transactions they conflict with are the ones that
 	 * drop: the way to give a new branch a double spend. A replacement the node refuses throws, leaving
-	 * the node as it was. Scripthash subscribers hear once, of the final status; header subscribers
+	 * the node as it was, as does a block whose transactions the node holds no raw form of (one applied
+	 * without `rawHex`). Scripthash subscribers hear once, of the final status; header subscribers
 	 * hear of the next block mined.
 	 */
 	readonly disconnectBlocks: (count: number, options?: DisconnectOptions) => DisconnectResult;
@@ -518,16 +519,18 @@ export function createNode(config?: NodeConfig): Node {
 		if (blocks.some((txids) => txids === undefined)) {
 			throw new Error(`Cannot disconnect ${count} blocks from ${tipHeight}: not every one was connected here`);
 		}
-		const before = storage.snapshot();
-
+		// Every transaction goes back through admit, which needs its raw form; a block applied without
+		// rawHex cannot be disconnected, and is refused before anything changes
+		const rawOf = (txid: string) => {
+			const rawHex = storage.getRawTx(txid);
+			if (rawHex === undefined) throw new Error(`Cannot disconnect ${count} blocks: no raw transaction for ${txid}`);
+			return rawHex;
+		};
 		// Oldest block first, each in block order, then the mempool, parents before children
-		const rawOf = (txid: string) => storage.getRawTx(txid) as string;
 		const disconnected = blocks.reverse().flatMap((txids) => (txids ?? []).map(rawOf));
 		const held = storage.getMempoolTxids().map(rawOf);
 
-		const affected = new Set<ScriptHash>(storage.clearMempool());
-		for (const height of heights) for (const sh of storage.undoBlock(height)) affected.add(sh);
-
+		const affected = new Set<ScriptHash>();
 		const returned: string[] = [];
 		const dropped: string[] = [];
 		const readmit = (rawHex: string) => {
@@ -539,16 +542,24 @@ export function createNode(config?: NodeConfig): Node {
 			}
 			return result;
 		};
-		for (const rawHex of options?.replacementTxs ?? []) {
-			const result = readmit(rawHex);
-			if (!result.success) {
-				storage.restore(before);
-				throw new Error(`Replacement refused at height ${tipHeight - count}: ${result.message}`);
+
+		const before = storage.snapshot();
+		try {
+			for (const sh of storage.clearMempool()) affected.add(sh);
+			for (const height of heights) for (const sh of storage.undoBlock(height)) affected.add(sh);
+			for (const rawHex of options?.replacementTxs ?? []) {
+				const result = readmit(rawHex);
+				if (!result.success) throw new Error(`Replacement refused at height ${tipHeight - count}: ${result.message}`);
 			}
-		}
-		for (const rawHex of [...disconnected, ...held]) {
-			const result = readmit(rawHex);
-			if (!result.success) dropped.push(binToHex(hashTransactionUiOrder(hexToBin(rawHex))));
+			for (const rawHex of [...disconnected, ...held]) {
+				const result = readmit(rawHex);
+				if (!result.success) dropped.push(binToHex(hashTransactionUiOrder(hexToBin(rawHex))));
+			}
+		} catch (error) {
+			// Whatever fails once the blocks are undone (a refused replacement, a verifier that throws)
+			// leaves the node as it was, not half disconnected; subscribers hear nothing
+			storage.restore(before);
+			throw error;
 		}
 
 		subscriptions.notifyChanges(affected);

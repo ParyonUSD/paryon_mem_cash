@@ -132,7 +132,8 @@ transaction service's simulated network needs.
   new tip, and one no longer valid there drops out with its descendants; coins they spend stay spent
   (by the mempool). Replacement transactions are admitted first, so the ones they conflict with are
   the ones that drop, which is how a new branch gets a double spend; a refused replacement throws and
-  leaves the node as it was. Subscribers hear once per scripthash. Upstream had only `undoBlock`,
+  leaves the node as it was, and so does a block applied without its raw transactions (`rawHex`),
+  which cannot be returned to the mempool. Subscribers hear once per scripthash. Upstream had only `undoBlock`,
   which cleared the mempool. New types `DisconnectOptions`, `DisconnectResult`.
 
 - **`mine({ include })` confirms chosen transactions.** `mine()` takes `{ timestamp, include }` (a

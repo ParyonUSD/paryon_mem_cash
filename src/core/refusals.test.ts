@@ -94,7 +94,6 @@ describe("a non-final transaction", () => {
 	it("keeps a debug message in every refusal, as BCHN's FormatStateMessage does", async () => {
 		const node = createTestIndexer();
 		const tx = buildTx([addCoin(node, "aa", 1_000n)], [2_000n]);
-		// The debug text itself is upstream's (BCHN formats the amounts in BCH); only its place is BCHN's
 		expect(await broadcast(node, tx.hex)).toMatch(/\n\nbad-txns-in-belowout, .+ \(code 16\)\n$/);
 	});
 });

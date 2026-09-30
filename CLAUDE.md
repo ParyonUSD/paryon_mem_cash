@@ -42,15 +42,14 @@ Tests sit next to the code (`*.test.ts`) and import source through relative path
 - `@bitauth/libauth` is pinned exactly: `src/validation/verifier.ts` deep-imports `@bitauth/libauth/build/lib/...`, internal paths a libauth release may move. Check them when upgrading.
 - Formatting is upstream's (tabs, double quotes); eslint enforces 120 columns. Nothing reformats upstream code wholesale, so its history stays readable with `git blame`.
 
-## Behaviour to keep in mind (after phase 3; PLAN.md phase 4 changes what is left)
+## Behaviour to keep in mind (after phase 4)
 
-Fixed in phase 3 (see CHANGELOG.md): Electrum scripthash byte order (`computeScriptHash`), protocol 1.4 to 1.5.3, BCHN refusal wording (`SubmitFailure.message`), mempool parent links, BIP68 on mempool coins, forgetting transactions that leave the mempool, real headers, `mine({ include })`, conflicts dropped on block connect, `disconnectBlocks` for reorgs.
+Fixed in phases 3 and 4 (see CHANGELOG.md): the shimmed gaps (scripthash byte order, protocol 1.4 to 1.5.3, BCHN refusal wording, mempool parent links, BIP68 on mempool coins, forgetting transactions that leave the mempool, real headers, `mine({ include })`, conflicts dropped on block connect, `disconnectBlocks`), then the audit's findings (checks in BCHN's order with finality before inputs, BCHN reasons for standardness, consensus and tokens, BIP68 time locks, Fulcrum's `listunspent` order and token filter, `get_balance`, history order and ranges, `get_first_use`, OP_RETURN outputs unindexed, verbose script description, Fulcrum error codes, hex case).
 
-Still upstream's, for phase 4:
-- Inputs are looked up before finality is checked, so a non-final transaction that also conflicts or misses an input gets the conflict or missing-input answer (BCHN: non-final first).
-- `listunspent` is in acceptance order, not Fulcrum's; `getBalance` counts mempool outputs the mempool spends; OP_RETURN outputs are indexed as coins.
-- Time-based BIP68 is not enforced; standardness and script refusals are in libauth's words.
+The verifier's pipeline is BCHN's `AcceptToMemoryPoolWorker` in order; `src/validation/README.md` lists it. The checks that need no inputs are `TxVerifier.checkBeforeInputs`, which the node runs before it looks the inputs up: keep new context-free checks there. Policy lives in `src/validation/policy.ts` (IsStandardTx, AreInputsStandard), consensus checks libauth also makes in `src/validation/consensus.ts`; both read libauth's consensus table for the VM version with the overrides applied. libauth's standard VM still runs behind them, with its data carrier limit lifted.
 
-Tests of the fork's fixes use `src/testkit.ts` (OP_TRUE transactions, `blockOf` for a block from elsewhere).
+What is left is listed in the README's "Known differences from BCHN and Fulcrum" (script failures in libauth's words, and smaller ones).
+
+Tests of the fork's fixes use `src/testkit.ts` (OP_TRUE transactions, P2SH_OP_TRUE coins for a standard node, `blockOf` for a block from elsewhere).
 
 `scripts/verify-recovery.sh` checks that a ref from before the restructure (`bf21c89` and earlier) compiles to the published `@mem-cash/*` tarballs of a version. It needs yarn and network access for `npm pack`.

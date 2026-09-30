@@ -115,11 +115,14 @@ await indexer.request("test.reset", []);
 
 ## Fulcrum Compatibility
 
-- **Error strings** match BCHN's `strRejectReason` (e.g. `bad-txns-prevout-null`, `min relay fee not met`)
+- **Error strings** match BCHN's `strRejectReason` (e.g. `bad-txns-prevout-null`, `min relay fee not met`), in BCHN's check order
 - **Reject codes** use BCHN values (`REJECT_INVALID`, `REJECT_NONSTANDARD`, etc.)
-- **Broadcast errors** use Fulcrum's format: `"the transaction was rejected by network rules.\n\n<reason> (code <code>)\n"`
-- **Mempool history sort** matches Fulcrum: height 0 (confirmed parents) before height -1 (unconfirmed parents), within each group sorted by txHash
+- **Broadcast errors** use Fulcrum's format and code 1: `"the transaction was rejected by network rules.\n\n<reason>, <debug> (code <code>)\n"`; an unknown txid in `transaction.get` is code 2, `daemon error: DaemonError({...})`
+- **`listunspent` order** matches Fulcrum: confirmed coins by height and position in the block, then mempool coins without, then with, an unconfirmed parent; ties by `tx_pos`, value, txid. The token filter (`include_tokens`, `exclude_tokens`, `tokens_only`) applies to `listunspent` and `get_balance`
+- **History sort** matches Fulcrum: confirmed by height and position in the block; mempool height 0 (confirmed parents) before height -1 (unconfirmed parents), within each group sorted by txHash. `get_history`'s `to_height` is exclusive
 - **Status hash** computation uses the same `txHash:height:` concatenation and single SHA-256
+- **Verbose transactions** describe scripts as BCHN's `getrawtransaction`: asm, type (P2SH32 is `scripthash`), addresses
+- **OP_RETURN outputs** are not indexed, as Fulcrum skips them
 - **Two-pass script verification** distinguishes `mandatory-script-verify-flag-failed` from `non-mandatory-script-verify-flag`
 
 ## Architecture

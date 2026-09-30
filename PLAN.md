@@ -2,7 +2,7 @@
 
 A fork of [mem-cash](https://github.com/mainnet-pat/mem-cash), an in-memory Bitcoin Cash node with a Fulcrum-compatible Electrum server, published in the `@paryonusd` scope as one package. It is the backbone of the transaction service's simulated network (`paryon_transaction_service/test/sim`, PR #67).
 
-Status: phases 1 (import and recover) and 2 (restructure) done, 2026-09-30. The repository carries upstream's history to 0.0.6 and the 0.0.7, 0.0.8 and 0.0.9 changes recovered as one commit each, every one compiling byte for byte to what npm published ([Recovery results](#recovery-results)); goal 2 is met. The five packages are now one, `@paryonusd/mem-cash` 0.1.0 (unpublished), with the 0.0.9 API and behaviour ([Restructure results](#restructure-results)). Phase 3 (the shimmed gaps) done, 2026-09-30: every node or Electrum gap in [the table](#gaps-the-shim-works-around-today) is fixed in the package with a test that failed before it ([Gap fix results](#gap-fix-results)); the service's shim still has them until phase 5 adopts the package. Next: phase 4, the audit's findings.
+Status: phases 1 (import and recover) and 2 (restructure) done, 2026-09-30. The repository carries upstream's history to 0.0.6 and the 0.0.7, 0.0.8 and 0.0.9 changes recovered as one commit each, every one compiling byte for byte to what npm published ([Recovery results](#recovery-results)); goal 2 is met. The five packages are now one, `@paryonusd/mem-cash` 0.1.0 (unpublished), with the 0.0.9 API and behaviour ([Restructure results](#restructure-results)). Phase 3 (the shimmed gaps) done, 2026-09-30: every node or Electrum gap in [the table](#gaps-the-shim-works-around-today) is fixed in the package with a test that failed before it ([Gap fix results](#gap-fix-results)); the service's shim still has them until phase 5 adopts the package. Phase 4 (the audit's findings) done, 2026-09-30: the three the bot reaches and every medium one are fixed, and the low ones fixed or recorded in the README's known differences ([Audit fix results](#audit-fix-results)); goal 3 is met. Next: phase 5, adoption in the transaction service.
 
 ## Goals
 
@@ -269,25 +269,61 @@ Results (2026-09-30): 24 findings, 23 confirmed by the verifier's own reproducti
 - The build is safe to run: no Node builtins, `eval`, network, filesystem, environment reads or timers, checked under `node --permission`.
 - Hygiene gaps: no LICENSE file shipped in the tarballs, no npm provenance, one maintainer publishing by hand.
 
-**Findings that shape the fork**, beyond the known gaps (all confirmed):
+**Findings that shape the fork**, beyond the known gaps (all confirmed; the last column added in phase 4):
 
-| Severity | Finding | Effect on the simulator |
-|---|---|---|
-| high | A non-final transaction is refused as `txn-mempool-conflict`, `Missing inputs` or `non-BIP68-final`: mem-cash and the shim look up inputs before checking finality, while BCHN checks finality first (`validation.cpp` 524-540) | In lagging-server scenarios, `updatePeriodBorrowing`, `newPeriodPool` or `cancelRedemption` (locktime = the bot's tip) sent to a server a block behind gets `Missing inputs` (retried as transient) where BCHN says `bad-txns-nonfinal` |
-| medium | `listunspent` in acceptance order, not Fulcrum's sort (confirmed by height and position; then mempool coins without unconfirmed parents; then with; `Storage.cpp` 4757, 4929) | Builders pick coins by position (`.find`, `[0]`), so the bot can chain off a different mempool coin than against Fulcrum, once its seeded wallet coins are spent within a block |
-| medium | Mempool entries always at height 0 (Fulcrum: -1 with an unconfirmed parent); the shim's workaround is incomplete | A scripthash with only a child gets no status notification when the parent confirms; `get_mempool` and `get_history` show 0 |
-| medium | Time-based BIP68 never enforced | None today: Paryon uses height-based locks only |
-| medium | Standardness and BIP68 checked later than BCHN, so another refusal wins | Only for non-standard transactions, which the builders do not make |
-| medium | Standardness, token, duplicate-input and script refusals in libauth wording | None for the bot's classifiers; a test asserting a BCHN reason would fail |
-| medium | Token filters (`exclude_tokens`, `tokens_only`) ignored in `listunspent` | None today: clients send `include_tokens` |
-| medium | Verbose `transaction.get` reports P2SH32 as nonstandard, without address or asm | None for the bot |
-| low | `bad-txns-nonfinal` with code 16 (BCHN 64); `get_balance` counting outputs spent in the mempool; history within a block in txid order; OP_RETURN outputs indexed as spendable; `node.mine()` overwriting the last 11 headers; ranged `get_history` inclusive; 1.6 advertised but 1.5 `block.headers` shape; Fulcrum error codes; OP_RETURN budget off by one byte (libauth); heap growing about 1 MB per block through snapshots | None for current scenarios |
+| Severity | Finding | Effect on the simulator | Fixed in |
+|---|---|---|---|
+| high | A non-final transaction is refused as `txn-mempool-conflict`, `Missing inputs` or `non-BIP68-final`: mem-cash and the shim look up inputs before checking finality, while BCHN checks finality first (`validation.cpp` 524-540) | In lagging-server scenarios, `updatePeriodBorrowing`, `newPeriodPool` or `cancelRedemption` (locktime = the bot's tip) sent to a server a block behind gets `Missing inputs` (retried as transient) where BCHN says `bad-txns-nonfinal` | `3b25c83` |
+| medium | `listunspent` in acceptance order, not Fulcrum's sort (confirmed by height and position; then mempool coins without unconfirmed parents; then with; `Storage.cpp` 4757, 4929) | Builders pick coins by position (`.find`, `[0]`), so the bot can chain off a different mempool coin than against Fulcrum, once its seeded wallet coins are spent within a block | `44c990e` |
+| medium | Mempool entries always at height 0 (Fulcrum: -1 with an unconfirmed parent); the shim's workaround is incomplete | A scripthash with only a child gets no status notification when the parent confirms; `get_mempool` and `get_history` show 0 | mostly `312ad81` (phase 3); `get_first_use` `69234a5` |
+| medium | Time-based BIP68 never enforced | None today: Paryon uses height-based locks only | `75ded8f` |
+| medium | Standardness and BIP68 checked later than BCHN, so another refusal wins | Only for non-standard transactions, which the builders do not make | `9bc42a3`, `45cecc9` |
+| medium | Standardness, token, duplicate-input and script refusals in libauth wording | None for the bot's classifiers; a test asserting a BCHN reason would fail | `9bc42a3`, `45cecc9`, `374cf53`, `5aa8ce5`, `6a8f678`; script failures recorded |
+| medium | Token filters (`exclude_tokens`, `tokens_only`) ignored in `listunspent` | None today: clients send `include_tokens` | `3aa3639` |
+| medium | Verbose `transaction.get` reports P2SH32 as nonstandard, without address or asm | None for the bot | `405c321` |
+| low | `bad-txns-nonfinal` with code 16 (BCHN 64); `get_balance` counting outputs spent in the mempool; history within a block in txid order; OP_RETURN outputs indexed as spendable; `node.mine()` overwriting the last 11 headers; ranged `get_history` inclusive; 1.6 advertised but 1.5 `block.headers` shape; Fulcrum error codes; OP_RETURN budget off by one byte (libauth); heap growing about 1 MB per block through snapshots | None for current scenarios | code 64 `1ca8b17`, headers `43fbd65`, protocol `f0e754f` (phase 3); `0b89161`, `69f0506`, `7a30a4c`, `bc85f73`, `3a5d551`, `b548efa`; heap recorded |
 
+### Audit fix results
+
+Done 2026-09-30, on top of `896157c`, one commit per finding (or per part of one), each with a test that failed before its fix; the commit body quotes the failure:
+
+| Commit | Finding | Test | What changed |
+|---|---|---|---|
+| `3b25c83` | finality before inputs (high) | `core/refusalOrder.test.ts` (5, 3 failing before) | the verifier's checks that need no inputs are `TxVerifier.checkBeforeInputs` (optional), which the node runs before it resolves inputs, in `submitTransaction` and `debugTransaction` |
+| `44c990e` | `listunspent` order | `electrum/listunspentOrder.test.ts` (2, 1 failing before) | `getUtxos` sorts as Fulcrum's `UnspentItem::operator<`; txid stands in for the token pointer tie |
+| `69234a5` | mempool heights | `electrum/mempoolHeights.test.ts` (3, 2 failing before) | `get_first_use` from the mempool: the first transaction paying the scripthash, -1 with an unconfirmed parent. Heights -1 and the notification when a parent confirms came with `312ad81`; the test holds them |
+| `9bc42a3` | check order | `core/refusalOrder.test.ts` (4 failing before) | dust (IsStandardTx) before finality and fees; duplicate inputs with the null prevout (`bad-txns-inputs-duplicate`, new `checkDuplicateInputs`); BIP68 before `CheckTxInputs` |
+| `45cecc9` | standardness wording | `validation/standardness.test.ts` (8 failing before) | `src/validation/policy.ts`: `IsStandardTx` and `AreInputsStandard` with BCHN's reasons, limits from libauth's consensus table for the VM version |
+| `b548efa` | OP_RETURN budget (low) | `validation/standardness.test.ts` (2 failing before) | the policy counts BCHN's way; libauth's standard VM gets its data carrier limit lifted; `ConsensusOverrides.maximumDataCarrierBytes` |
+| `374cf53` | consensus wording | `validation/consensusWording.test.ts` (5 failing before) | `src/validation/consensus.ts`: `CheckTransactionCommon` before inputs, undersize and version after finality (64) |
+| `5aa8ce5` | token wording | `validation/tokens.test.ts` (4, 3 failing before) | BCHN's `CheckTxTokens` walk and reasons, debug messages quoting `token::OutputData` |
+| `75ded8f` | time-based BIP68 | `core/sequenceLocks.test.ts` (2 failing before) | the node passes each confirmed coin's median time past; a mempool coin's is the tip's |
+| `3aa3639` | token filters | `electrum/tokenFilter.test.ts` (4, 3 failing before) | Fulcrum's filter on `listunspent` and `get_balance`; `getBalance(scriptHash, tokenFilter?)` |
+| `405c321` | verbose P2SH32 | `electrum/verboseScripts.test.ts` (1 failing before) | `src/electrum/scriptAsm.ts`: `ScriptToAsmStr` and `ScriptPubKeyToUniv`'s type and addresses |
+| `0b89161` | `get_balance` (low) | `electrum/balance.test.ts` (1 failing before) | mempool outputs the mempool spends left out |
+| `69f0506` | history order within a block (low) | `electrum/historyOrder.test.ts` (1 failing before) | block order, so the status hash is Fulcrum's |
+| `7a30a4c` | OP_RETURN indexed (low) | `storage/opReturn.test.ts` (3 failing before) | no coin or history for OP_RETURN outputs, in the mempool or blocks; spending one is `Missing inputs` |
+| `bc85f73` | ranged `get_history` (low) | `electrum/historyRange.test.ts` (2 failing before) | `to_height` exclusive, -1 for no bound, Fulcrum's parameter errors |
+| `3a5d551` | error codes (low) | `electrum/errorCodes.test.ts` (2 failing before) | broadcast code 1; unknown txid code 2 as a `DaemonError` |
+| `6a8f678` | BCHN wording (found on the way) | `validation/consensusWording.test.ts` (1 failing before) | `bad-txns-in-belowout` quotes BCH amounts (`FormatMoney`) |
+| `5cd47d9` | upper-case hex (the audit's misc checks) | `electrum/hexCase.test.ts` (1 failing before) | txid and scripthash parameters read in either case |
+
+**Tests.** `pnpm test:unit`: 43 files, 424 tests pass (373 before the phase). `pnpm check` passes. No upstream test changed; `exports.test.ts` lists `checkDuplicateInputs`. The testkit gained full outputs, unlocking scripts, `P2SH_OP_TRUE` coins and a standard node option.
+
+**Choices worth reviewing:**
+- libauth's standard VM still runs after the fork's own policy and consensus checks, so a rule the two disagree on still refuses (in libauth's words); only its data carrier count, known to be off, is lifted.
+- With standardness on, a version 3 transaction is `version` (IsStandardTx runs first in BCHN); with it off, `bad-txns-version`, code 64 as the mempool re-codes contextual failures. The audit expected `bad-txns-version (code 16)`; BCHN's source says otherwise.
+- `checkBeforeInputs` is optional on `TxVerifier`, so a hand-written verifier still fits, at the price of its refusals coming after the inputs.
+- `get_balance` and `listunspent` default to `include_tokens`, Fulcrum's default for a token-aware client, which every protocol version this server negotiates is.
+
+**What the phase changes for adoption (phase 5).** The shim's `admit()` never checked finality first, so nothing there needs porting for it; it goes with the rest of `admit()`. `addressIndex.ts` re-sorts `listunspent` by height alone (stable, so it keeps the fork's order within a height) and corrects `get_balance` for transactions a lagging server has not indexed, assuming mem-cash's old count; with the fork's balance leaving out mempool outputs the mempool spends, that correction must not subtract a hidden output a mempool child spends. A refused broadcast now carries code 1, which `memCashSocket.ts` forwards; the service classifies refusals by text, not code.
+
+**Recorded, not fixed** (README, "Known differences from BCHN and Fulcrum"): script failures in libauth's words; `CheckTxInputs` per check rather than per input; time locks on coins below the stored headers; 2026 opcode names in asm; the `listunspent` token-pointer tie; `verbose` as a number, extra `listunspent` parameters, `estimatefee`, `block.headers` below `cp_height`; heap growth through snapshots.
 
 ## Open decisions
 
 1. **Fork base: decided.** The 0.0.9 source recovered from the 0.0.6 source and the published build ([Recovering the 0.0.9 source](#recovering-the-009-source)); asking upstream only for a change that cannot be recovered with confidence.
-2. **Which gaps to fix in the fork and which to leave in the shim.** Node and Electrum behaviour goes into the fork; simulation of several servers stays in the service. The audit's findings are added to the same split. Settled for the gap table in phase 3: all twelve rows were node or Electrum behaviour and are fixed in the fork; the audit's findings follow in phase 4.
+2. **Which gaps to fix in the fork and which to leave in the shim.** Node and Electrum behaviour goes into the fork; simulation of several servers stays in the service. The audit's findings are added to the same split. Settled for the gap table in phase 3: all twelve rows were node or Electrum behaviour and are fixed in the fork. Settled for the audit's findings in phase 4: all are node or Electrum behaviour; fixed in the fork, or recorded in the README where not.
 3. **Where the generic simulation layers end up:** in the fork, in `@paryonusd/electrum-session/testing`, or in the service until the V2 fork needs them.
 4. **Upstream PRs:** which fixes to offer, and when.
 
@@ -298,6 +334,6 @@ Phases for a workflow, each with a review before the next:
 1. **Import and recover (goal 2).** Done 2026-09-30, see [Recovery results](#recovery-results). Create the repo from the 0.0.6 source, keeping upstream history and attribution. Recover 0.0.7, 0.0.8 and 0.0.9 as one commit each, verified by compiling and diffing against the published builds.
 2. **Restructure (goal 1).** Done 2026-09-30, see [Restructure results](#restructure-results). Merge the five packages into `src/` folders, one `package.json`, the two entry points, electrum-session's tooling (pnpm, tsc, vitest, eslint, CI). All upstream tests pass unchanged.
 3. **Fix the shimmed gaps (goal 1).** Done 2026-09-30, see [Gap fix results](#gap-fix-results). One commit per gap from the table, each with a test that fails before it. Order by how much shim each fix removes: scripthash order, protocol version, refusal wording, parent links, headers, rollback and reorg.
-4. **Fix the important audit findings (goal 3).** One commit per finding, each with a test that fails before it: finality checked first, Fulcrum's `listunspent` order, mempool heights -1 with the notifications they drive; then the medium ones off our path (time-based BIP68, check order, BCHN reject wording, token filters, P2SH32 in verbose output); low ones fixed where cheap or recorded in the README.
+4. **Fix the important audit findings (goal 3).** Done 2026-09-30, see [Audit fix results](#audit-fix-results). One commit per finding, each with a test that fails before it: finality checked first, Fulcrum's `listunspent` order, mempool heights -1 with the notifications they drive; then the medium ones off our path (time-based BIP68, check order, BCHN reject wording, token filters, P2SH32 in verbose output); low ones fixed where cheap or recorded in the README.
 5. **Adopt (goal 1).** In the transaction service, replace the five `@mem-cash/*` devDependencies with `@paryonusd/mem-cash` and remove every workaround the fork made unnecessary from `shim.ts` and `simNetwork.ts`. Done when the sim suite gives the same outcomes and the same expected failures as before, and the shim holds only multi-server simulation.
 6. **Publish** 0.1.0, and offer the upstream PRs decided in decision 4.

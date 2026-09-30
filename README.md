@@ -45,7 +45,7 @@ The folders under `src/` are upstream's five packages, and each keeps its README
 
 [CHANGELOG.md](CHANGELOG.md) has one entry per change, each naming how it differs from upstream. In short, so far:
 
-- One package with two entry points instead of five packages; the same exported names, plus `computeScriptHash`, `createBlockHeader` and the types of the new options.
+- One package with two entry points instead of five packages; the same exported names, plus `computeScriptHash`, `createBlockHeader`, `checkDuplicateInputs` and the types of the new options (among them `TxVerifier.checkBeforeInputs`, `ConsensusOverrides.maximumDataCarrierBytes` and a token filter on `StorageReader.getBalance`).
 - pnpm, eslint and vitest in place of yarn workspaces and biome; `@bitauth/libauth` pinned exactly, since validation deep-imports libauth's build internals, which a range could move.
 - Behaviour, where the simulator had to work around upstream (PLAN.md phase 3):
   - scripthashes in the Electrum byte order (sha256 reversed);
@@ -55,8 +55,26 @@ The folders under `src/` are upstream's five packages, and each keeps its README
   - a transaction that leaves the mempool unconfirmed is forgotten; a verbose mempool transaction has no block fields;
   - `mine()` builds real 80-byte headers linked by prev-hash and can confirm chosen transactions (`include`); a block drops the mempool transactions it conflicts with;
   - `disconnectBlocks` for reorgs, with `undoBlock` no longer wiping the mempool or restoring phantom coins.
+- Behaviour, from the audit of 0.0.9 (PLAN.md phase 4):
+  - checks in BCHN's order: the transaction on its own (`CheckRegularTransaction`, `IsStandardTx`, finality) before its inputs are looked up, so a non-final transaction is refused as such even when an input is missing or conflicts; BIP68 before `CheckTxInputs`; tokens after the fees;
+  - refusals in BCHN's words where libauth's were given: standardness (`scriptpubkey`, `dust`, `oversize-op-return`, `bad-txns-nonstandard-inputs`, ...), `bad-txns-inputs-duplicate`, `bad-txns-vout-toolarge`, `bad-txns-undersize`, `bad-txns-version`, the `bad-txns-token-*` reasons, amounts in BCH in `bad-txns-in-belowout`; OP_RETURN data counted as BCHN counts it;
+  - BIP68 time locks enforced against the median time past;
+  - `listunspent` in Fulcrum's order, with its token filter (also on `get_balance`); `get_balance` without mempool outputs the mempool spends; history within a block in block order; `get_history`'s `to_height` exclusive; `get_first_use` from the mempool at -1 with an unconfirmed parent;
+  - OP_RETURN outputs not indexed; verbose transactions with BCHN's asm, types and addresses (P2SH32 included); Fulcrum's error codes for broadcast and `transaction.get`; hex parameters in either case.
 
-The audit's other findings (finality checked first, Fulcrum's `listunspent` order, and the rest) are PLAN.md's phase 4. Where the upstream READMEs under `src/` describe behaviour these fixes changed, they have been updated.
+Where the upstream READMEs under `src/` describe behaviour these fixes changed, they have been updated.
+
+## Known differences from BCHN and Fulcrum
+
+What the audit found and the fork leaves, because nothing Paryon runs depends on it or the fix is not worth its weight:
+
+- **Script failures in libauth's words.** A script that fails is refused as BCHN refuses it, `mandatory-script-verify-flag-failed (...)` or `non-mandatory-script-verify-flag (...)` with the right code, but the text in the brackets is libauth's (for a P2SH hash mismatch, "The P2SH redeem bytecode provided in this input does not match the hash required by the locking bytecode" where BCHN says "Script evaluated without error but finished with a false/empty top stack element"). libauth's errors do not map one to one onto BCHN's `ScriptErrorString`.
+- **`CheckTxInputs` per check, not per input.** BCHN checks each input in turn for maturity, unspendable script and value range; the verifier runs each check over all inputs. Only which of two such refusals wins can differ.
+- **Time locks on coins below the stored headers.** A coin seeded with `addUtxo` at a height the node holds no header for (below `setChainTip`'s eleven) counts its BIP68 time lock from time 0, so the lock is met.
+- **2026 opcodes named as in 2023.** Verbose asm names opcodes as libauth's 2023 set does; the opcodes the 2026 upgrade assigns show their earlier names. A signature's sighash type is named when its encoding is a Schnorr or DER signature's, checked with libauth rather than BCHN's `CheckTransactionSignatureEncoding`.
+- **`listunspent` ties.** Fulcrum breaks a tie between two coins of one transaction position and value by the address of their token data in memory; the fork uses the txid.
+- **Parameter handling.** `transaction.get` takes `verbose` as a boolean only (Fulcrum also a number) and answers `Invalid verbose parameter`; `listunspent` accepts extra parameters Fulcrum refuses; `blockchain.estimatefee` answers -1 where Fulcrum forwards to BCHN's estimate (at least the relay fee); `block.headers` with a `cp_height` below the range does not refuse.
+- **Memory.** `snapshot()` is a `structuredClone` of the whole node; a consumer taking one per block (as the simulator did before `disconnectBlocks`) grows by about 1 MB per block.
 
 ## Commands
 

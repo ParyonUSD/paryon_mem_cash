@@ -78,8 +78,17 @@ export function buildTx(
  * A node with a verifier and a tip at `height`. Standardness is off by default, as OP_TRUE is
  * non-standard; a standard node's tests spend P2SH_OP_TRUE coins (`addP2shCoin`).
  */
-export function createTestIndexer(height = 200, { standard = false }: { standard?: boolean } = {}): Indexer {
-	const node = createIndexer({ verifier: createTxVerifier({ standard }) });
+export function createTestIndexer(
+	height = 200,
+	{ standard = false, oneMinuteBlocksActivationHeight }: {
+		standard?: boolean;
+		oneMinuteBlocksActivationHeight?: number;
+	} = {},
+): Indexer {
+	const node = createIndexer({
+		verifier: createTxVerifier({ standard }),
+		...(oneMinuteBlocksActivationHeight === undefined ? {} : { oneMinuteBlocksActivationHeight }),
+	});
 	node.setChainTip(height, 1_700_000_000);
 	return node;
 }

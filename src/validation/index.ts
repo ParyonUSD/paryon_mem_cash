@@ -28,6 +28,7 @@ export {
 	SEQUENCE_LOCKTIME_MASK,
 	SEQUENCE_LOCKTIME_TYPE_FLAG,
 } from "./constants.js";
+export { LOCK_UNIT_TICKS, tickAtHeight } from "./ticks.js";
 export type {
 	ChainState,
 	DebugFailure,

@@ -48,6 +48,12 @@ export interface ChainState {
 	readonly height: number;
 	/** BIP113 Median Time Past at the current tip. */
 	readonly medianTimePast: number;
+	/**
+	 * The one-minute-blocks activation height (CHIP-2025-03): the last block of 600 ticks. Height
+	 * locktimes, height sequence locks and the coinbase maturity then count ticks. Unset: a chain
+	 * without the upgrade.
+	 */
+	readonly oneMinuteBlocksActivationHeight?: number;
 }
 
 /**

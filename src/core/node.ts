@@ -32,6 +32,7 @@ import type {
 	TxVerifier,
 	ValidatedTransaction,
 } from "../validation/index.js";
+import { assertOneMinuteBlocksActivationHeight } from "../validation/ticks.js";
 import { acceptToMempool } from "./accept.js";
 import { createBlockHeader } from "./blockHeader.js";
 import type { SubscriptionManager } from "./subscriptionManager.js";
@@ -41,6 +42,12 @@ import { createSubscriptionManager } from "./subscriptionManager.js";
 export interface NodeConfig {
 	/** Transaction verifier. When provided, submitTransaction runs full validation. */
 	readonly verifier?: TxVerifier;
+	/**
+	 * The one-minute-blocks activation height (CHIP-2025-03): the last block of 600 ticks, as 332450 on
+	 * chipnet. From the block after it a block adds 60 ticks, and height locktimes, height sequence
+	 * locks and the coinbase maturity count 600 ticks per unit. Unset: a chain without the upgrade.
+	 */
+	readonly oneMinuteBlocksActivationHeight?: number;
 }
 
 /** Parameters for adding a UTXO. Provide `address` or `scriptHash` + `lockingBytecode`. */
@@ -190,6 +197,8 @@ export interface Node extends StorageReader {
 export function createNode(config?: NodeConfig): Node {
 	const storage = createMemoryStorage();
 
+	const oneMinuteBlocksActivationHeight = config?.oneMinuteBlocksActivationHeight;
+	assertOneMinuteBlocksActivationHeight(oneMinuteBlocksActivationHeight);
 	let verifier = config?.verifier;
 	// Pending timestamp for the next mined block (test helper: setNextBlockTimestamp). Consumed once by mine().
 	let pendingTimestamp: number | undefined;
@@ -203,6 +212,7 @@ export function createNode(config?: NodeConfig): Node {
 		return {
 			height: tip.height,
 			medianTimePast: computeMedianTimePast(storage, tip.height),
+			...(oneMinuteBlocksActivationHeight === undefined ? {} : { oneMinuteBlocksActivationHeight }),
 		};
 	}
 

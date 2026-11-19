@@ -60,6 +60,7 @@ import {
 	formatMoney,
 } from "./consensus.js";
 import { checkInputsStandard, checkStandardTransaction, type PolicyLimits } from "./policy.js";
+import { assertOneMinuteBlocksActivationHeight } from "./ticks.js";
 import type {
 	ChainState,
 	ConsensusOverrides,
@@ -273,6 +274,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 		rawHex: string,
 		chainState: ChainState,
 	): { ok: true; decoded: Transaction } | PipelineFailure {
+		assertOneMinuteBlocksActivationHeight(chainState.oneMinuteBlocksActivationHeight);
 		const spendHeight = chainState.height + 1;
 
 		// 1. Decode tx hex
@@ -312,6 +314,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			decoded.inputs,
 			spendHeight,
 			chainState.medianTimePast,
+			chainState.oneMinuteBlocksActivationHeight,
 		);
 		// The mempool refuses a transaction that is not final yet as non-standard (64), not invalid: it may
 		// be valid in a later block (BCHN AcceptToMemoryPoolWorker re-codes ContextualCheckTransaction's)
@@ -369,6 +372,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 			}),
 			spendHeight,
 			chainState.medianTimePast,
+			chainState.oneMinuteBlocksActivationHeight,
 		);
 		if (!seqCheck.ok) return seqCheck;
 
@@ -379,6 +383,7 @@ export function createTxVerifier(config?: TxVerifierConfig): TxVerifier {
 				height: so.height ?? 1,
 			})),
 			spendHeight,
+			chainState.oneMinuteBlocksActivationHeight,
 		);
 		if (!maturityCheck.ok) return maturityCheck;
 

@@ -17,6 +17,7 @@ import {
 	SEQUENCE_LOCKTIME_MASK,
 	SEQUENCE_LOCKTIME_TYPE_FLAG,
 } from "./constants.js";
+import { LOCK_UNIT_TICKS, tickAtHeight } from "./ticks.js";
 
 /**
  * Result of a consensus/policy check.
@@ -88,17 +89,21 @@ interface MaturityInput {
 }
 
 /**
- * Check that coinbase outputs have sufficient maturity (>= 100 blocks deep).
+ * Check that coinbase outputs have sufficient maturity: 100 lock units of ticks since their block,
+ * which is 100 blocks deep without `activationHeight` (the one-minute-blocks activation height) and
+ * up to 1,000 after it.
  * BCHN: CheckTxInputs → "bad-txns-premature-spend-of-coinbase" (REJECT_INVALID).
  */
 export function checkCoinbaseMaturity(
 	inputs: readonly MaturityInput[],
 	spendHeight: number,
+	activationHeight?: number,
 ): CheckResult {
+	const spendTick = tickAtHeight(spendHeight, activationHeight);
 	for (const input of inputs) {
 		if (input.isCoinbase) {
 			const depth = spendHeight - input.height;
-			if (depth < COINBASE_MATURITY) {
+			if (spendTick - tickAtHeight(input.height, activationHeight) < COINBASE_MATURITY * LOCK_UNIT_TICKS) {
 				return {
 					ok: false,
 					code: REJECT_INVALID,
@@ -149,7 +154,9 @@ interface SequenceInput {
 }
 
 /**
- * Check IsFinalTx logic from BCHN.
+ * Check IsFinalTx logic from BCHN. A height locktime is final in a block whose tick is past 600 per
+ * unit of it, which without `activationHeight` (the one-minute-blocks activation height) is a block
+ * above it.
  * BCHN: ContextualCheckTransaction → "bad-txns-nonfinal" (REJECT_INVALID, DoS 10).
  */
 export function checkLocktimeFinality(
@@ -157,11 +164,15 @@ export function checkLocktimeFinality(
 	inputs: readonly SequenceInput[],
 	blockHeight: number,
 	mtp: number,
+	activationHeight?: number,
 ): CheckResult {
 	if (locktime === 0) return CHECK_OK;
 
-	const threshold = locktime < LOCKTIME_THRESHOLD ? blockHeight : mtp;
-	if (locktime < threshold) return CHECK_OK;
+	const reached =
+		locktime < LOCKTIME_THRESHOLD
+			? locktime * LOCK_UNIT_TICKS < tickAtHeight(blockHeight, activationHeight)
+			: locktime < mtp;
+	if (reached) return CHECK_OK;
 
 	// Locktime not satisfied by height/time — check if all inputs are final
 	for (const input of inputs) {
@@ -186,7 +197,8 @@ interface SequenceLockInput {
 }
 
 /**
- * Check BIP68 relative sequence locks.
+ * Check BIP68 relative sequence locks. A height lock counts 600 ticks per unit from the coin's block,
+ * which without `activationHeight` (the one-minute-blocks activation height) is a block per unit.
  * Only applies when txVersion >= 2.
  * BCHN: AcceptToMemoryPoolWorker → "non-BIP68-final" (REJECT_NONSTANDARD, DoS 0).
  */
@@ -195,8 +207,10 @@ export function checkSequenceLocks(
 	inputs: readonly SequenceLockInput[],
 	spendHeight: number,
 	spendMtp: number,
+	activationHeight?: number,
 ): CheckResult {
 	if (txVersion < 2) return CHECK_OK;
+	const spendTick = tickAtHeight(spendHeight, activationHeight);
 
 	for (const input of inputs) {
 		const seq = input.sequenceNumber;
@@ -215,8 +229,8 @@ export function checkSequenceLocks(
 			}
 		} else {
 			// Height-based lock
-			const requiredDepth = maskedSeq;
-			if (spendHeight - input.height < requiredDepth) {
+			const requiredTicks = maskedSeq * LOCK_UNIT_TICKS;
+			if (spendTick - tickAtHeight(input.height, activationHeight) < requiredTicks) {
 				return { ok: false, code: REJECT_NONSTANDARD, error: "non-BIP68-final" };
 			}
 		}

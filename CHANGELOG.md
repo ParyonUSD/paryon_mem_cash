@@ -8,7 +8,40 @@ Versions 0.0.7 to 0.0.9 were published to npm by mainnet-pat without their sourc
 entries below are written by the fork, which recovered each version's TypeScript from the published
 build; the code is upstream's and does not differ from it.
 
-## 0.1.0 (unreleased)
+## 0.2.0
+
+### Added
+
+- **One-minute blocks (CHIP-2025-03), by an activation height.** `createNode` and `createIndexer`
+  take `oneMinuteBlocksActivationHeight`, the last block of 600 ticks (332450 on chipnet). From the
+  block after it a block adds 60 ticks, and the node checks as the CHIP specifies:
+  - a height locktime `L` is final in block `b` when `T(b) > 600 * L`;
+  - a height sequence lock `n` is met when `T(b) - T(coin's block) >= 600 * n`, a mempool coin
+    counting from the next block as before;
+  - a coinbase output matures after 60,000 ticks, a thousand one-minute blocks.
+
+  The mempool asks for the block after the tip, and the refusals keep their reasons and codes
+  (`bad-txns-nonfinal`, `non-BIP68-final`, `bad-txns-premature-spend-of-coinbase`). The coinbase
+  refusal still gives its depth in blocks, where BCHN's draft gives it in ticks. Time locks and
+  the median time past are unchanged, as in the CHIP. A height that is not a positive integer throws.
+  Upstream has no such option.
+- **Without the option nothing changes.** A node without an activation height checks by block
+  height as 0.1.0 does, so a simulation moves to this version as it is.
+- **`ChainState.oneMinuteBlocksActivationHeight`** carries the height to a verifier used on its own,
+  and `checkLocktimeFinality`, `checkSequenceLocks` and `checkCoinbaseMaturity` take it as an
+  optional last argument. `tickAtHeight(height, activationHeight?)` and `LOCK_UNIT_TICKS` are
+  exported from both entry points.
+- **Tested against the CHIP's time-lock vectors** (`tests/timelock/timelock.json`, vendored
+  unchanged), for every vector of an ordinary transaction on a chain without the upgrade or with one
+  activation.
+
+### Not modelled
+
+- The activation is a height the caller gives, where a real node finds it from the median time past.
+  The CHIP's other rules (subsidy, difficulty, block size limit, parking, finalization, the coinbase
+  rules) concern blocks a miner builds and a node receives, which this node does not check.
+
+## 0.1.0
 
 The first version of the fork: upstream 0.0.9 in one package, with the behaviour fixes the Paryon
 transaction service's simulated network needs.

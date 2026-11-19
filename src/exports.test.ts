@@ -137,6 +137,7 @@ const values = [
 	"ERR_INVALID_REQUEST",
 	"ERR_METHOD_NOT_FOUND",
 	"LOCKTIME_THRESHOLD",
+	"LOCK_UNIT_TICKS",
 	"MAX_MONEY",
 	"MAX_SCRIPT_SIZE",
 	"MTP_BLOCK_COUNT",
@@ -215,6 +216,7 @@ const values = [
 	"randomUtxo",
 	"relayFee",
 	"subscribe",
+	"tickAtHeight",
 	"txSubscribe",
 	"txUnsubscribe",
 	"unsubscribe",
@@ -232,6 +234,7 @@ const validationValues = [
 	"DEFAULT_MIN_RELAY_FEE_PER_KB",
 	"DUST_RELAY_FEE_PER_KB",
 	"LOCKTIME_THRESHOLD",
+	"LOCK_UNIT_TICKS",
 	"MAX_MONEY",
 	"MAX_SCRIPT_SIZE",
 	"MTP_BLOCK_COUNT",
@@ -254,6 +257,7 @@ const validationValues = [
 	"createTxVerifier",
 	"createVmFacade",
 	"getDustThreshold",
+	"tickAtHeight",
 ];
 
 describe("entry points", () => {
